@@ -1,5 +1,5 @@
 import request from './request'
-import type { Script } from '@/types/api'
+import type { PageResult, Script } from '@/types/api'
 
 // POST /scripts 是 multipart：file + name/version/description/params(JSON 字符串) + data_files(多文件)
 // params 在 view 层 JSON.stringify 后作为表单字段传入
@@ -8,5 +8,23 @@ export const uploadScript = (formData: FormData) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 
-// 后端无分页
-export const listScripts = () => request.get<unknown, Script[]>('/scripts')
+// 分页 + 按名称模糊查询
+export interface ScriptQuery {
+  name?: string
+  page?: number
+  page_size?: number
+}
+
+export const listScripts = (params: ScriptQuery = {}) =>
+  request.get<unknown, PageResult<Script>>('/scripts', { params })
+
+// PUT /scripts/{id}/jmx：更换 JMX 文件（multipart，仅 file 字段）
+// 后端比对新旧文件线程组（名称+类型），不一致返回业务错误 code 3009
+export const replaceScriptJmx = (scriptId: number, formData: FormData) =>
+  request.put<unknown, Script>(`/scripts/${scriptId}/jmx`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+
+// DELETE /scripts/{id}：被场景引用时后端拒绝（code 3010）
+export const deleteScript = (scriptId: number) =>
+  request.delete<unknown, { id: number; deleted: boolean }>(`/scripts/${scriptId}`)

@@ -1,5 +1,13 @@
 import request from './request'
-import type { Agent } from '@/types/api'
+import type { Agent, PageResult } from '@/types/api'
 
-// 后端无分页，一次性返回数组
-export const listAgents = () => request.get<unknown, Agent[]>('/agents')
+// 列表查询参数：keyword 模糊匹配 agent_id/IP/主机名，status 精确过滤
+export interface AgentQuery {
+  keyword?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+
+export const listAgents = (params: AgentQuery = {}) =>
+  request.get<unknown, PageResult<Agent>>('/agents', { params })

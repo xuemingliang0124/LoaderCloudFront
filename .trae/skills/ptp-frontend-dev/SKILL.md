@@ -36,14 +36,17 @@ description: "LoaderCloud 压测平台前端（Vue3+Element Plus+ECharts）开�
 
 ```typescript
 import request from './request'
-import type { Agent } from '@/types/api'
+import type { Agent, PageResult } from '@/types/api'
 
-// 无分页列表
-export const listAgents = () => request.get<unknown, Agent[]>('/agents')
-
-// 分页列表（仅 runs）
-export const listRuns = (page = 1, page_size = 20) =>
-  request.get<unknown, PageResult<Run>>('/runs', { params: { page, page_size } })
+// 分页 + 模糊查询列表（agents/scripts/scenarios/schedules/runs 统一形态）
+export interface AgentQuery {
+  keyword?: string
+  status?: string
+  page?: number
+  page_size?: number
+}
+export const listAgents = (params: AgentQuery = {}) =>
+  request.get<unknown, PageResult<Agent>>('/agents', { params })
 
 // POST
 export const createRun = (scenario_id: number, agent_ids?: string[]) =>
@@ -137,13 +140,19 @@ instance.interceptors.request.use((config) => {
 - 路由组件一律 `() => import('@/views/...')` 懒加载
 - RunDetail 路径参数 `:runNo`（camelCase 在 route params，但拿到后赋值给 `run_no` 变量与后端字段对齐）
 
-## 7. 列表页规范（分页 vs 非分页）
+## 7. 列表页规范（统一分页 + 模糊查询）
 
-> 后端只有 `GET /runs` 分页，其余列表（agents/scripts/scenarios/schedules）一次性返回数组。
+> 五个列表（agents/scripts/scenarios/schedules/runs）后端**全部**分页，统一返回 `{total, items}`（前端 `PageResult<T>`）。
 
-- **分页页（仅 RunList）**：用 `el-pagination`，调 `listRuns(page, page_size)`，total 来自响应
-- **非分页页（AgentList/ScriptList/ScenarioList/ScheduleList）**：直接调 `listXxx()` 拿数组，**不要**挂 `el-pagination`，**不要**前端假分页（除非数据量证明需要，再后端加）
+- 统一用 `el-pagination`（layout `total, sizes, prev, pager, next, jumper`，页大小 `[10, 20, 50, 100]`，默认 20），参照 `RunList.vue` 的 `page` reactive + `handlePageChange/handlePageSizeChange`
+- 各接口查询参数：
+  - `GET /agents`：`keyword`（模糊匹配 agent_id/IP/主机名）、`status`（online/busy/offline 精确）、`page`、`page_size`
+  - `GET /scripts`、`GET /scenarios`：`name`（模糊）、`page`、`page_size`
+  - `GET /schedules`：`name`（模糊）、`enabled`（布尔精确）、`page`、`page_size`
+  - `GET /runs`：`page`、`page_size`（无模糊查询）
+- 查询条件用独立 `filters` reactive 承载输入值，点「查询」/回车时 `page.page=1` 再请求（不要在输入时逐字请求）；下拉类筛选（status/enabled）可 `@change` 直接触发；空字符串传 `undefined`，别把空串发给后端
 - 表格统一 `el-table`，空态用 `el-empty`，加载态用 `v-loading`
+- **下拉选择数据源**（新建运行的场景/Agent、新建场景的脚本、新建定时的场景）：这些主数据不分页展示但需要全量选项，打开弹窗时调 `listXxx({ page: 1, page_size: 100 })` 取 `.items`（后端 `page_size` 上限 100），不要在列表页的 `fetchData` 里顺带拉取拖慢首屏
 
 ## 8. ECharts 实时曲线规范（`RunDetail.vue`）
 
@@ -220,7 +229,7 @@ onBeforeUnmount(() => {
 2. **Agent 有 busy 态**（正在执行任务时心跳置 busy）；offline 之外都可选来下发，能否再派由后端选机逻辑裁决。
 3. **新增字段别漏**：Agent.`plugins`(string[] jar 名)/`cpu_cores`/`mem_total_gb`；Script.`plugins`(`{key,filename}[]`)；Scenario.`total_threads`（0=每台全量加压，>0 按 Agent CPU 核数拆分）。
 4. **401 响应体是 `{detail}` 不是 `{code,message,data}`**——拦截器错误分支必须先判 HTTP status 再读 body。
-5. **`agents/scripts/scenarios/schedules` 列表无分页**——别给它们挂 `el-pagination`，只有 `runs` 有。
+5. **五个列表全部分页且返回 `{total, items}`**——agents（`keyword`+`status`）、scripts/scenarios（`name`）、schedules（`name`+`enabled`）、runs 都走 `page/page_size`，不再有"直接返回数组"的列表接口；拿数据用 `res.items`/`res.total`，下拉场景取 `page_size: 100`。
 6. **`POST /runs` 返回 `{run_no, agent_ids}`**——不是只返回 run_no；`agent_ids` 是后端实际选中的压力机列表（可能与你传入的不同，自动选机场景）。
 7. **`POST /scripts` 的 params 是 JSON 字符串**——`JSON.stringify([{key,default,desc}])`，不是直接传数组；另有 `plugin_files` 多 jar 字段。
 8. **`/ws/agent` 浏览器不可连**——它是 Agent→Master 专用通道；前端实时大盘只能 5s 轮询 `/metrics/timeseries`。
@@ -237,3 +246,5 @@ onBeforeUnmount(() => {
 19. **timeseries 响应是扁平点列表不是 ES 原始聚合**——后端 `query_timeseries` 已拍平为 `[{ts(秒),label,tps,avg_rt,error_rate(百分比)}]`；`error_rate` 后端已 *100，前端不要再乘。若看到 `rows.map is not a function`，说明后端退回了嵌套聚合结构。
 20. **RunDetail 查询窗口按 run 状态切换**——活跃态（`pending/running/stopping`）`start=run.start_time`、`end=now` 滚动查自场景开始时间起的全程；终态（`finished/partial/failed/stopped`）用 `start_time~end_time` 全程窗口查一次并停止轮询。`start_time` 是 naive ISO（master 容器 TZ=Asia/Shanghai 后为北京墙钟），用 `new Date(str)` 按浏览器本地时区解析；ES 的 `@timestamp` 是绝对 epoch 毫秒，时区无关。
 21. **master 容器必须 TZ=Asia/Shanghai**——Dockerfile 装 tzdata + compose master 环境变量 TZ；否则 `datetime.now()` 写 UTC 墙钟，naive 时间串与北京浏览器解析差 8 小时。
+22. **`ElMessage`/`ElMessageBox` 等函数式服务组件样式不会被按需注入**——`unplugin-vue-components` 只对模板里的 `<el-xxx>` 标签注入样式；脚本中显式 `import { ElMessage, ElMessageBox } from 'element-plus'` 只打包 JS 不带 CSS，弹窗会缺少遮罩、居中定位等样式，裸排在左上角。修复：在 `src/main.ts` 全局引入样式 `import 'element-plus/es/components/message/style/css'` 和 `import 'element-plus/es/components/message-box/style/css'`（含 `request.ts` 拦截器里的 ElMessage 也一并覆盖）。
+

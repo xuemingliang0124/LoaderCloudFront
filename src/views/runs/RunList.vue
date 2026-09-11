@@ -59,9 +59,13 @@ const handlePageSizeChange = (s: number) => {
 const openCreate = async () => {
   dialogVisible.value = true
   try {
-    const [scs, ags] = await Promise.all([listScenarios(), listAgents()])
-    scenarios.value = scs
-    agents.value = ags
+    // 下拉用主数据，量小，取首页 100 条上限
+    const [scs, ags] = await Promise.all([
+      listScenarios({ page: 1, page_size: 100 }),
+      listAgents({ page: 1, page_size: 100 }),
+    ])
+    scenarios.value = scs.items
+    agents.value = ags.items
   } catch {
     // 拦截器已弹 ElMessage
   }
