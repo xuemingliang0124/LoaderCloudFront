@@ -133,6 +133,24 @@ export interface ScenarioIn {
   scripts: ScenarioScript[]
 }
 
+// 场景删除预检（GET /scenarios/{id}/delete-precheck）
+export interface ScenarioDeletePrecheck {
+  scenario_id: number
+  running_runs: number // 未结束的执行任务（pending/running/stopping），存在时禁止删除
+  history_runs: number // 历史执行记录数，严格模式阻断、force 级联清理
+  schedule_jobs: { id: number; name: string }[] // 引用该场景的定时任务
+}
+
+// 场景删除结果（DELETE /scenarios/{id}?force=）
+export interface ScenarioDeleteResult {
+  id: number
+  deleted: boolean
+  force: boolean
+  removed_runs: number
+  removed_schedules: number
+  removed_artifacts: number
+}
+
 // schedule（ScheduleOut / ScheduleIn）
 export interface Schedule {
   id: number
