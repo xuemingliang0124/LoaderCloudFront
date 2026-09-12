@@ -173,7 +173,7 @@ onMounted(fetchData)
             <el-option
               v-for="s in scenarios"
               :key="s.id"
-              :label="`${s.name} (agent ${s.agent_count})`"
+              :label="`${s.name} (${s.scripts?.length || 0} 脚本)`"
               :value="s.id"
             />
           </el-select>

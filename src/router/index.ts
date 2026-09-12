@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '场景' },
       },
       {
+        path: 'scenarios/create',
+        name: 'scenario-create',
+        component: () => import('@/views/scenarios/ScenarioCreate.vue'),
+        meta: { title: '新建场景' },
+      },
+      {
         path: 'runs',
         name: 'runs',
         component: () => import('@/views/runs/RunList.vue'),

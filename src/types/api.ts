@@ -1,5 +1,6 @@
 // 镜像后端 master/app/schemas/*.py + app/models/enums.py，字段全 snake_case
 // 注意：枚举 API 输出为小写 value（如 running/online），见 utils/status.ts
+import type { ScenarioType } from '@/utils/status'
 
 export interface ApiResponse<T = unknown> {
   code: number
@@ -80,27 +81,56 @@ export interface Script {
   description: string
 }
 
+// 场景内单个线程组的加压参数（对应后端 ThreadGroupSettingIn/Out）
+export interface ThreadGroupSetting {
+  thread_group_name: string
+  testclass: string
+  num_threads: number
+  ramp_time: number
+  loops: number // -1 表示无限循环
+  scheduler: boolean
+  duration: number // scheduler=false 时为 0
+}
+
+// 场景内单个脚本关联（对应后端 ScenarioScriptIn/Out）
+export interface ScenarioScript {
+  script_id: number
+  order_index: number
+  agent_tags: string[]
+  agent_count: number
+  thread_groups: ThreadGroupSetting[]
+  // 前端展示用，提交时不发送给后端
+  script_name?: string
+}
+
+// JMX 扫描返回的线程组（GET /scripts/{id}/thread-groups，对应 ThreadGroupOut）
+export interface ThreadGroupScan {
+  name: string
+  testclass: string
+  num_threads: number
+  ramp_time: number
+  loops: number
+  scheduler: boolean
+  duration: number
+}
+
 // scenario（ScenarioOut / ScenarioIn）
 export interface Scenario {
   id: number
   name: string
-  script_id: number
-  param_overrides: Record<string, unknown> | null
-  agent_tags: string[] | null
-  agent_count: number
-  total_threads: number // >0 按 Agent CPU 核数拆分；0 每台全量加压
+  scenario_type: ScenarioType
   duration: number
+  param_overrides: Record<string, unknown> | null
   description: string
+  scripts: ScenarioScript[]
 }
 export interface ScenarioIn {
   name: string
-  script_id: number
-  param_overrides?: Record<string, unknown>
-  agent_tags?: string[]
-  agent_count?: number
-  total_threads?: number
+  scenario_type: ScenarioType
   duration?: number
+  param_overrides?: Record<string, unknown>
   description?: string
+  scripts: ScenarioScript[]
 }
 
 // schedule（ScheduleOut / ScheduleIn）

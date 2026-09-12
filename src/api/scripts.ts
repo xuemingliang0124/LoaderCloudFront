@@ -1,5 +1,5 @@
 import request from './request'
-import type { PageResult, Script } from '@/types/api'
+import type { PageResult, Script, ThreadGroupScan } from '@/types/api'
 
 // POST /scripts 是 multipart：file + name/version/description/params(JSON 字符串) + data_files(多文件)
 // params 在 view 层 JSON.stringify 后作为表单字段传入
@@ -28,3 +28,9 @@ export const replaceScriptJmx = (scriptId: number, formData: FormData) =>
 // DELETE /scripts/{id}：被场景引用时后端拒绝（code 3010）
 export const deleteScript = (scriptId: number) =>
   request.delete<unknown, { id: number; deleted: boolean }>(`/scripts/${scriptId}`)
+
+// GET /scripts/{id}/thread-groups：扫描 JMX 返回线程组（变量引用已按作用域解析）
+export const getThreadGroups = (scriptId: number) =>
+  request.get<unknown, { thread_groups: ThreadGroupScan[] }>(
+    `/scripts/${scriptId}/thread-groups`,
+  )

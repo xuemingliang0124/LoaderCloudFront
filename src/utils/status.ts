@@ -97,3 +97,31 @@ export const RUN_TRIGGER_TEXT: Record<string, string> = {
   manual: '手动',
   scheduled: '定时',
 }
+
+// ---- 场景类型 ----
+// 后端 ScenarioType(str, Enum) 四选一，API 层输出中文 value（master/app/models/enums.py）
+export const SCENARIO_TYPE_OPTIONS = [
+  { value: '单交易基准', label: '单交易基准' },
+  { value: '单交易负载', label: '单交易负载' },
+  { value: '混合场景', label: '混合场景' },
+  { value: '稳定性', label: '稳定性' },
+] as const
+
+export type ScenarioType = (typeof SCENARIO_TYPE_OPTIONS)[number]['value']
+
+export const scenarioTypeTagType = (
+  t: string,
+): 'primary' | 'success' | 'warning' | 'info' => {
+  switch (t) {
+    case '单交易基准':
+      return 'info'
+    case '单交易负载':
+      return 'primary'
+    case '混合场景':
+      return 'success'
+    case '稳定性':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
