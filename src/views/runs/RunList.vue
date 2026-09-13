@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listScenarios } from '@/api/scenarios'
 import { listAgents } from '@/api/agents'
 import { createRun, listRuns, stopRun } from '@/api/runs'
 import type { Agent, PageResult, Run, Scenario } from '@/types/api'
+import { useProjectStore } from '@/stores/project'
+import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/format'
 import {
   RUN_TRIGGER_TEXT,
@@ -15,7 +17,18 @@ import {
   runStatusText,
 } from '@/utils/status'
 
+const route = useRoute()
 const router = useRouter()
+const projectStore = useProjectStore()
+const auth = useAuthStore()
+const projectId = Number(route.params.projectId)
+
+// 写操作权限：admin 或项目编辑者+
+const canWrite = computed(() => {
+  if (auth.isAdmin) return true
+  const p = projectStore.projects.find((x) => x.id === projectId)
+  return projectStore.hasRole(p, '编辑者')
+})
 
 const runs = ref<Run[]>([])
 const total = ref(0)
@@ -35,7 +48,7 @@ const form = reactive({
 const fetchData = async () => {
   loading.value = true
   try {
-    const res: PageResult<Run> = await listRuns(page.page, page.page_size)
+    const res: PageResult<Run> = await listRuns(projectId, page.page, page.page_size)
     runs.value = res.items
     total.value = res.total
   } catch {
@@ -61,7 +74,7 @@ const openCreate = async () => {
   try {
     // 下拉用主数据，量小，取首页 100 条上限
     const [scs, ags] = await Promise.all([
-      listScenarios({ page: 1, page_size: 100 }),
+      listScenarios(projectId, { page: 1, page_size: 100 }),
       listAgents({ page: 1, page_size: 100 }),
     ])
     scenarios.value = scs.items
@@ -78,7 +91,11 @@ const handleCreate = async () => {
   }
   submitting.value = true
   try {
-    const result = await createRun(form.scenario_id, form.agent_ids.length ? form.agent_ids : undefined)
+    const result = await createRun(
+      projectId,
+      form.scenario_id,
+      form.agent_ids.length ? form.agent_ids : undefined,
+    )
     ElMessage.success(`已下发，run_no=${result.run_no}，选中 ${result.agent_ids.length} 台 Agent`)
     dialogVisible.value = false
     form.scenario_id = undefined
@@ -93,7 +110,7 @@ const handleCreate = async () => {
 
 const handleStop = async (row: Run) => {
   try {
-    await stopRun(row.run_no)
+    await stopRun(projectId, row.run_no)
     ElMessage.success('停止指令已下发')
     await fetchData()
   } catch {
@@ -109,7 +126,7 @@ onMounted(fetchData)
     <template #header>
       <div class="header">
         <span>运行记录</span>
-        <el-button type="primary" @click="openCreate">新建运行</el-button>
+        <el-button v-if="canWrite" type="primary" @click="openCreate">新建运行</el-button>
       </div>
     </template>
     <el-table v-loading="loading" :data="runs" stripe>
@@ -141,8 +158,9 @@ onMounted(fetchData)
       <el-table-column prop="error_message" label="错误信息" min-width="200" show-overflow-tooltip />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/runs/${row.run_no}`)">详情</el-button>
+          <el-button link type="primary" @click="router.push(`/projects/${projectId}/runs/${row.run_no}`)">详情</el-button>
           <el-button
+            v-if="canWrite"
             link
             type="danger"
             :disabled="!isRunStoppable(row.status)"

@@ -5,7 +5,7 @@ import { getThreadGroups } from '@/api/scripts'
 import type { ScenarioScript } from '@/types/api'
 import ThreadGroupTable from './ThreadGroupTable.vue'
 
-const props = defineProps<{ index: number }>()
+const props = defineProps<{ index: number; projectId: number }>()
 const emit = defineEmits<{ remove: [] }>()
 
 // 双向同步整个 ScenarioScript 给父组件
@@ -26,7 +26,7 @@ const agentTagsStr = computed({
 onMounted(async () => {
   if (script.value.thread_groups.length) return
   try {
-    const res = await getThreadGroups(script.value.script_id)
+    const res = await getThreadGroups(props.projectId, script.value.script_id)
     script.value.thread_groups = res.thread_groups.map((tg) => ({
       thread_group_name: tg.name,
       testclass: tg.testclass,

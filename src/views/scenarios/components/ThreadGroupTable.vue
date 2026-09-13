@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { defineModel } from 'vue'
 import type { ThreadGroupSetting } from '@/types/api'
 
 // 双向同步线程组编辑结果给父组件（state 单一来源在 ScenarioCreate）

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type {
   UploadFile,
@@ -9,6 +10,20 @@ import type {
 } from 'element-plus'
 import { listScripts, uploadScript, replaceScriptJmx, deleteScript } from '@/api/scripts'
 import type { Script } from '@/types/api'
+import { useProjectStore } from '@/stores/project'
+import { useAuthStore } from '@/stores/auth'
+
+const route = useRoute()
+const projectStore = useProjectStore()
+const auth = useAuthStore()
+const projectId = Number(route.params.projectId)
+
+// 写操作权限：admin 或项目编辑者+
+const canWrite = computed(() => {
+  if (auth.isAdmin) return true
+  const p = projectStore.projects.find((x) => x.id === projectId)
+  return projectStore.hasRole(p, '编辑者')
+})
 
 const scripts = ref<Script[]>([])
 const total = ref(0)
@@ -47,7 +62,7 @@ const pluginFiles = ref<File[]>([])
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await listScripts({
+    const res = await listScripts(projectId, {
       name: filters.name.trim() || undefined,
       page: page.page,
       page_size: page.page_size,
@@ -145,7 +160,7 @@ const handleUpload = async () => {
 
   uploading.value = true
   try {
-    await uploadScript(formData)
+    await uploadScript(projectId, formData)
     ElMessage.success('上传成功')
     dialogVisible.value = false
     resetForm()
@@ -198,7 +213,7 @@ const handleReplaceConfirm = async () => {
 
   replacing.value = true
   try {
-    await replaceScriptJmx(replaceTarget.value.id, formData)
+    await replaceScriptJmx(projectId, replaceTarget.value.id, formData)
     ElMessage.success('更换成功')
     replaceVisible.value = false
     await fetchData()
@@ -218,7 +233,7 @@ const handleDelete = (row: Script) => {
   )
     .then(async () => {
       try {
-        await deleteScript(row.id)
+        await deleteScript(projectId, row.id)
         ElMessage.success('删除成功')
         await fetchData()
       } catch {
@@ -238,7 +253,7 @@ onMounted(fetchData)
     <template #header>
       <div class="header">
         <span>脚本列表</span>
-        <el-button type="primary" @click="dialogVisible = true">上传脚本</el-button>
+        <el-button v-if="canWrite" type="primary" @click="dialogVisible = true">上传脚本</el-button>
       </div>
     </template>
     <div class="filters">
@@ -270,8 +285,8 @@ onMounted(fetchData)
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
-          <el-button link type="primary" size="small" @click="openReplace(row)">更换</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="canWrite" link type="primary" size="small" @click="openReplace(row)">更换</el-button>
+          <el-button v-if="canWrite" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { createScenario } from '@/api/scenarios'
@@ -10,7 +10,9 @@ import ScenarioBasicForm from './components/ScenarioBasicForm.vue'
 import ScriptPicker from './components/ScriptPicker.vue'
 import ScenarioScriptCard from './components/ScenarioScriptCard.vue'
 
+const route = useRoute()
 const router = useRouter()
+const projectId = Number(route.params.projectId)
 const submitting = ref(false)
 const pickerVisible = ref(false)
 
@@ -90,9 +92,9 @@ const handleSubmit = async () => {
         thread_groups: s.thread_groups,
       })),
     }
-    await createScenario(payload)
+    await createScenario(projectId, payload)
     ElMessage.success('创建成功')
-    router.push('/scenarios')
+    router.push(`/projects/${projectId}/scenarios`)
   } catch {
     // 拦截器已弹 ElMessage
   } finally {
@@ -100,7 +102,7 @@ const handleSubmit = async () => {
   }
 }
 
-const handleCancel = () => router.push('/scenarios')
+const handleCancel = () => router.push(`/projects/${projectId}/scenarios`)
 </script>
 
 <template>
@@ -141,6 +143,7 @@ const handleCancel = () => router.push('/scenarios')
         v-for="(s, i) in form.scripts"
         :key="s.script_id"
         :index="i"
+        :project-id="projectId"
         v-model="form.scripts[i]"
         @remove="handleRemoveScript(i)"
       />
@@ -149,6 +152,7 @@ const handleCancel = () => router.push('/scenarios')
 
     <ScriptPicker
       v-model:visible="pickerVisible"
+      :project-id="projectId"
       :exclude="excludeIds"
       @select="handleAddScripts"
     />

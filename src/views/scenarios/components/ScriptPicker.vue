@@ -5,6 +5,7 @@ import type { Script } from '@/types/api'
 
 const props = defineProps<{
   visible: boolean
+  projectId: number
   // 已选脚本 id 列表，用于在 picker 中标记/禁用重复添加
   exclude: number[]
 }>()
@@ -32,7 +33,7 @@ watch(
 const fetchScripts = async () => {
   loading.value = true
   try {
-    const res = await listScripts({
+    const res = await listScripts(props.projectId, {
       name: keyword.value.trim() || undefined,
       page: 1,
       page_size: 100,

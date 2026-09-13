@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { login as loginApi } from '@/api/auth'
 import type { LoginIn } from '@/types/api'
 
@@ -12,6 +12,9 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || '')
   const username = ref(localStorage.getItem(USER_KEY) || '')
   const role = ref(localStorage.getItem(ROLE_KEY) || '')
+
+  // 全局角色：后端 DB 存 admin/user（历史 viewer 视为普通用户），仅 admin 为超管
+  const isAdmin = computed(() => role.value === 'admin')
 
   const login = async (payload: LoginIn) => {
     const data = await loginApi(payload)
@@ -32,5 +35,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(ROLE_KEY)
   }
 
-  return { token, username, role, login, logout }
+  return { token, username, role, isAdmin, login, logout }
 })

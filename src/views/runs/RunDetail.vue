@@ -10,6 +10,7 @@ import { isRunActive, runStatusTagType, runStatusText } from '@/utils/status'
 
 const route = useRoute()
 const router = useRouter()
+const projectId = Number(route.params.projectId)
 const runNo = route.params.runNo as string
 
 const chartRef = ref<HTMLDivElement>()
@@ -29,7 +30,7 @@ const activeMetric = ref<'tps' | 'avg_rt' | 'error_rate'>('tps')
 const fetchRun = async () => {
   // runs 无详情端点：用列表里的字段组装
   try {
-    const res = await listRuns(1, 1000)
+    const res = await listRuns(projectId, 1, 1000)
     run.value = res.items.find((r) => r.run_no === runNo) || null
   } catch {
     // 拦截器已弹 ElMessage

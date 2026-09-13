@@ -40,7 +40,13 @@ instance.interceptors.response.use(
     }
     // 2. 400 业务错误：读后端 {code, message}（BusinessError 走此通道）
     if (status === 400 && err.response?.data && 'message' in err.response.data) {
-      ElMessage.error((err.response.data as ApiResponse).message)
+      const body = err.response.data as ApiResponse
+      ElMessage.error(body.message)
+      // 特定业务错误码跳转：项目不存在 / 非项目成员 → 回项目列表
+      // 角色不足(3031)、非管理员(1010)等仅提示，留在当前页
+      if (body.code === 3021 || body.code === 3030) {
+        router.push('/projects')
+      }
       return Promise.reject(err)
     }
     // 3. 其他：兜底

@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteScenario, listScenarios, precheckScenarioDelete } from '@/api/scenarios'
 import { listAgents } from '@/api/agents'
 import { createRun } from '@/api/runs'
 import type { Agent, Scenario, ScenarioDeletePrecheck } from '@/types/api'
+import { useProjectStore } from '@/stores/project'
+import { useAuthStore } from '@/stores/auth'
 import { isAgentSelectable, scenarioTypeTagType } from '@/utils/status'
 
+const route = useRoute()
 const router = useRouter()
+const projectStore = useProjectStore()
+const auth = useAuthStore()
+const projectId = Number(route.params.projectId)
+
+// 写操作权限：admin 或项目编辑者+
+const canWrite = computed(() => {
+  if (auth.isAdmin) return true
+  const p = projectStore.projects.find((x) => x.id === projectId)
+  return projectStore.hasRole(p, '编辑者')
+})
 
 const scenarios = ref<Scenario[]>([])
 const total = ref(0)
@@ -21,7 +34,7 @@ const page = reactive({ page: 1, page_size: 20 })
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await listScenarios({
+    const res = await listScenarios(projectId, {
       name: filters.name.trim() || undefined,
       page: page.page,
       page_size: page.page_size,
@@ -58,7 +71,7 @@ const handlePageSizeChange = (s: number) => {
 }
 
 const handleCreate = () => {
-  router.push('/scenarios/create')
+  router.push(`/projects/${projectId}/scenarios/create`)
 }
 
 // ===== 执行 =====
@@ -88,6 +101,7 @@ const handleRunSubmit = async () => {
   runSubmitting.value = true
   try {
     const result = await createRun(
+      projectId,
       runForm.scenario.id,
       runForm.agent_ids.length ? runForm.agent_ids : undefined,
     )
@@ -115,7 +129,7 @@ const handleDetail = (row: Scenario) => {
 const handleDelete = async (row: Scenario) => {
   let pre: ScenarioDeletePrecheck
   try {
-    pre = await precheckScenarioDelete(row.id)
+    pre = await precheckScenarioDelete(projectId, row.id)
   } catch {
     // 拦截器已弹 ElMessage（如场景不存在 code 3013）
     return
@@ -147,7 +161,7 @@ const handleDelete = async (row: Scenario) => {
                     .join('、')}${pre.schedule_jobs.length > 5 ? ' 等' : ''}`,
                 )
               : null,
-          ],
+          ].filter(Boolean),
         ),
         h('p', { style: 'margin: 8px 0 0; color: var(--el-color-danger);' }, '删除后不可恢复！'),
       ])
@@ -163,7 +177,7 @@ const handleDelete = async (row: Scenario) => {
   if (!confirmed) return
 
   try {
-    const res = await deleteScenario(row.id, needForce)
+    const res = await deleteScenario(projectId, row.id, needForce)
     if (needForce) {
       ElMessage.success(
         `删除成功，已清理 ${res.removed_runs} 条执行记录、${res.removed_schedules} 个定时任务` +
@@ -192,7 +206,7 @@ onMounted(fetchData)
     <template #header>
       <div class="header">
         <span>场景列表</span>
-        <el-button type="primary" @click="handleCreate">新建场景</el-button>
+        <el-button v-if="canWrite" type="primary" @click="handleCreate">新建场景</el-button>
       </div>
     </template>
     <div class="filters">
@@ -234,9 +248,9 @@ onMounted(fetchData)
       <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="handleRun(row)">执行</el-button>
+          <el-button v-if="canWrite" link type="primary" size="small" @click="handleRun(row)">执行</el-button>
           <el-button link type="primary" size="small" @click="handleDetail(row)">详情</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="canWrite" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

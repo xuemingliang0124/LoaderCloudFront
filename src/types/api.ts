@@ -174,3 +174,105 @@ export interface TimeseriesPoint {
   tps: number
   error_rate: number // 百分比 0~100（后端已从 0~1 比率 *100）
 }
+
+// ===== 项目 / 项目成员 / 用户（项目管理 + 权限模型）=====
+
+// 项目（ProjectOut）：my_role 为当前用户在该项目的角色（中文：项目管理员/编辑者/观察者）
+// admin 对所有项目恒为「项目管理员」；非成员为「观察者」（列表接口仅返回成员项目，实际为成员角色）
+export interface Project {
+  id: number
+  name: string
+  description: string
+  created_by: string
+  created_at: string
+  updated_at: string
+  my_role: string
+}
+export interface ProjectIn {
+  name: string
+  description?: string
+}
+// ProjectUpdateIn：name 与 description 至少提供一项，前端按需传
+export interface ProjectUpdateIn {
+  name?: string
+  description?: string
+}
+export interface ProjectQuery {
+  name?: string
+  page?: number
+  page_size?: number
+}
+
+// 项目删除预检（GET /projects/{id}/delete-precheck）
+export interface ProjectDeletePrecheck {
+  project_id: number
+  scripts: number // 项目内脚本数
+  scenarios: number // 项目内场景数
+  running_runs: number // 未结束的执行任务，存在时禁止删除（force 也拒绝）
+  schedule_jobs: { id: number; name: string }[] // 项目内定时任务
+}
+// 项目删除结果（DELETE /projects/{id}?force=）
+export interface ProjectDeleteResult {
+  id: number
+  deleted: boolean
+  force: boolean
+  removed_scripts: number
+  removed_scenarios: number
+  removed_runs: number
+  removed_schedules: number
+  removed_artifacts: number
+}
+
+// 项目成员角色（API 收/出中文）：项目管理员 / 编辑者 / 观察者
+export type ProjectRole = '项目管理员' | '编辑者' | '观察者'
+
+// 项目成员（MemberOut）
+export interface Member {
+  id: number
+  project_id: number
+  username: string
+  role: string // 中文角色名
+  granted_by: string
+  created_at: string
+  updated_at: string
+}
+export interface MemberGrantIn {
+  username: string
+  role: ProjectRole
+}
+export interface MemberRoleUpdateIn {
+  role: ProjectRole
+}
+export interface MemberQuery {
+  username?: string
+  page?: number
+  page_size?: number
+}
+
+// 全局角色（API 收/出中文）：管理员 / 普通用户
+export type GlobalRole = '管理员' | '普通用户'
+
+// 用户（UserOut）：不含密码，role 为中文角色名
+export interface User {
+  id: number
+  username: string
+  role: string // 中文角色名
+  created_at: string
+  updated_at: string
+}
+export interface UserCreateIn {
+  username: string
+  password: string
+  role: GlobalRole
+}
+// UserUpdateIn：role 与 password 至少提供一项
+export interface UserUpdateIn {
+  role?: GlobalRole
+  password?: string
+}
+export interface UserQuery {
+  username?: string
+  role?: GlobalRole
+  page?: number
+  page_size?: number
+}

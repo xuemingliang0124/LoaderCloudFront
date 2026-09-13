@@ -1,9 +1,24 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { listScenarios } from '@/api/scenarios'
 import { createSchedule, listSchedules, toggleSchedule } from '@/api/schedules'
 import type { Schedule, Scenario } from '@/types/api'
+import { useProjectStore } from '@/stores/project'
+import { useAuthStore } from '@/stores/auth'
+
+const route = useRoute()
+const projectStore = useProjectStore()
+const auth = useAuthStore()
+const projectId = Number(route.params.projectId)
+
+// 写操作权限：admin 或项目编辑者+
+const canWrite = computed(() => {
+  if (auth.isAdmin) return true
+  const p = projectStore.projects.find((x) => x.id === projectId)
+  return projectStore.hasRole(p, '编辑者')
+})
 
 const schedules = ref<Schedule[]>([])
 const scenarios = ref<Scenario[]>([])
@@ -25,7 +40,7 @@ const form = reactive({
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await listSchedules({
+    const res = await listSchedules(projectId, {
       name: filters.name.trim() || undefined,
       enabled: filters.enabled === '' ? undefined : filters.enabled === 'true',
       page: page.page,
@@ -67,7 +82,7 @@ const handlePageSizeChange = (s: number) => {
 const openCreate = async () => {
   dialogVisible.value = true
   try {
-    const res = await listScenarios({ page: 1, page_size: 100 })
+    const res = await listScenarios(projectId, { page: 1, page_size: 100 })
     scenarios.value = res.items
   } catch {
     // 拦截器已弹 ElMessage
@@ -87,7 +102,7 @@ const handleCreate = async () => {
   }
   submitting.value = true
   try {
-    await createSchedule({
+    await createSchedule(projectId, {
       name: form.name,
       scenario_id: form.scenario_id,
       cron: form.cron,
@@ -106,7 +121,7 @@ const handleCreate = async () => {
 
 const handleToggle = async (row: Schedule) => {
   try {
-    await toggleSchedule(row.id)
+    await toggleSchedule(projectId, row.id)
     await fetchData()
   } catch {
     // 拦截器已弹 ElMessage
@@ -121,7 +136,7 @@ onMounted(fetchData)
     <template #header>
       <div class="header">
         <span>定时任务</span>
-        <el-button type="primary" @click="openCreate">新建定时</el-button>
+        <el-button v-if="canWrite" type="primary" @click="openCreate">新建定时</el-button>
       </div>
     </template>
     <div class="filters">
@@ -165,7 +180,12 @@ onMounted(fetchData)
       </el-table-column>
       <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
-          <el-button link :type="row.enabled ? 'danger' : 'primary'" @click="handleToggle(row)">
+          <el-button
+            v-if="canWrite"
+            link
+            :type="row.enabled ? 'danger' : 'primary'"
+            @click="handleToggle(row)"
+          >
             {{ row.enabled ? '停用' : '启用' }}
           </el-button>
         </template>
