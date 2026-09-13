@@ -170,6 +170,7 @@ export interface ScheduleIn {
 export interface TimeseriesPoint {
   ts: number // 秒级 unix（绝对时区无关）
   label: string
+  sample_type?: 'request' | 'transaction' // 统计类型（缺省全量查询时后端返回，供前端分组）
   avg_rt: number // 平均响应时间 ms
   tps: number
   error_rate: number // 百分比 0~100（后端已从 0~1 比率 *100）

@@ -7,6 +7,12 @@ export const listRuns = (project_id: number, page = 1, page_size = 20) =>
     params: { page, page_size },
   })
 
+// 执行记录详情（2003 不存在 / 3022 不属于该项目），返回结构与列表项一致
+export const getRun = (project_id: number, run_no: string) =>
+  request.get<unknown, Run>(
+    `/projects/${project_id}/runs/${encodeURIComponent(run_no)}`,
+  )
+
 // POST /projects/{project_id}/runs 返回 { run_no, agent_ids }（agent_ids 是后端实际选中的压力机）
 export const createRun = (
   project_id: number,
