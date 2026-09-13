@@ -35,6 +35,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/users/UserList.vue'),
         meta: { title: '用户管理', adminOnly: true },
       },
+      // 全局管理：插件管理（jar 池，启用后推送在线 Agent）
+      {
+        path: 'plugins',
+        name: 'plugins',
+        component: () => import('@/views/plugins/PluginList.vue'),
+        meta: { title: '插件管理' },
+      },
       // 项目作用域资源：scripts / scenarios / runs / schedules
       {
         path: 'projects/:projectId/members',

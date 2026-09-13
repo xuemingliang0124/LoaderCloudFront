@@ -17,6 +17,7 @@ import {
   UserFilled,
   DataBoard,
   Box,
+  Tools,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -32,6 +33,7 @@ const menuRef = ref<any>()
 const globalMenus = [
   { index: 'projects', title: '项目列表', icon: Folder, path: '/projects' },
   { index: 'agents', title: '压力机', icon: Cpu, path: '/agents' },
+  { index: 'plugins', title: '插件管理', icon: Tools, path: '/plugins' },
   { index: 'users', title: '用户管理', icon: UserFilled, path: '/users', adminOnly: true },
 ]
 

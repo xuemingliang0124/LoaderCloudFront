@@ -276,3 +276,39 @@ export interface UserQuery {
   page?: number
   page_size?: number
 }
+
+// ===== 全局插件管理（JMeter 第三方插件 jar 池）=====
+// 对应后端 GET /plugins 列表项 / GET /plugins/{id} 详情
+// 上传去重：同 sha256 视为同一插件，后端返回 deduplicated=true
+export interface Plugin {
+  id: number
+  name: string
+  version: string
+  sha256: string // 64 位内容指纹，前端展示需截断
+  size: number // 字节数，前端格式化为 KB/MB
+  enabled: boolean // 禁用时不进入 expected_plugins，Agent 收 MSG_PLUGIN_REMOVE 卸载
+  description: string
+  created_by: string
+  // 仅详情接口返回，列表不返回
+  file_key?: string
+}
+// 上传返回：deduplicated=true 表示同 sha 已存在，复用既有记录
+export interface PluginUploadResult {
+  id: number
+  deduplicated: boolean
+}
+// PATCH /plugins/{id} 返回
+export interface PluginUpdateResult {
+  id: number
+  enabled: boolean
+}
+// DELETE /plugins/{id} 返回
+export interface PluginDeleteResult {
+  id: number
+  deleted: boolean
+}
+// POST /plugins/{id}/sync 返回：pushed_to 为推送到的在线 Agent 数量
+export interface PluginSyncResult {
+  plugin_id: number
+  pushed_to: number
+}
