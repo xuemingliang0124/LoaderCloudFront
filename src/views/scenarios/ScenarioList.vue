@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type HistoryState } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteScenario, listScenarios, precheckScenarioDelete } from '@/api/scenarios'
 import { listAgents } from '@/api/agents'
@@ -116,13 +116,12 @@ const handleRunSubmit = async () => {
   }
 }
 
-// ===== 详情 =====
-const detailVisible = ref(false)
-const detailRow = ref<Scenario | null>(null)
-
-const handleDetail = (row: Scenario) => {
-  detailRow.value = row
-  detailVisible.value = true
+// ===== 编辑：复用创建页，行数据随 history.state 传入用于回填（刷新时编辑页自行兜底拉取） =====
+const handleEdit = (row: Scenario) => {
+  router.push({
+    path: `/projects/${projectId}/scenarios/${row.id}/edit`,
+    state: { scenario: row } as unknown as HistoryState,
+  })
 }
 
 // ===== 删除：先调预检，运行中任务直接拦截；有关联记录则二次确认后 force 级联删除 =====
@@ -249,7 +248,7 @@ onMounted(fetchData)
       <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button v-if="canWrite" link type="primary" size="small" @click="handleRun(row)">执行</el-button>
-          <el-button link type="primary" size="small" @click="handleDetail(row)">详情</el-button>
+          <el-button v-if="canWrite" link type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
           <el-button v-if="canWrite" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -295,49 +294,6 @@ onMounted(fetchData)
         <el-button type="primary" :loading="runSubmitting" @click="handleRunSubmit">下发</el-button>
       </template>
     </el-dialog>
-
-    <!-- 详情弹窗：基础信息 + 各脚本的线程组加压配置 -->
-    <el-dialog v-model="detailVisible" title="场景详情" width="760px">
-      <el-descriptions v-if="detailRow" :column="2" border>
-        <el-descriptions-item label="名称">{{ detailRow.name }}</el-descriptions-item>
-        <el-descriptions-item label="类型">
-          <el-tag :type="scenarioTypeTagType(detailRow.scenario_type)" size="small">
-            {{ detailRow.scenario_type }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="时长(秒)">{{ detailRow.duration ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="描述">{{ detailRow.description || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="参数覆盖" :span="2">
-          {{ JSON.stringify(detailRow.param_overrides || {}) }}
-        </el-descriptions-item>
-      </el-descriptions>
-      <div v-if="detailRow" class="detail-scripts">
-        <div v-for="s in detailRow.scripts" :key="s.script_id" class="detail-script">
-          <div class="detail-script-header">
-            <span class="detail-script-name">{{ s.script_name || `脚本 #${s.script_id}` }}</span>
-            <el-tag size="small" type="info">顺序 {{ s.order_index }}</el-tag>
-            <el-tag size="small" type="info">
-              {{ s.agent_tags?.length ? `标签 ${s.agent_tags.join(',')}` : '不按标签选机' }}
-            </el-tag>
-            <el-tag size="small" type="info">{{ s.agent_count ? `${s.agent_count} 台` : '全量加压' }}</el-tag>
-          </div>
-          <el-table :data="s.thread_groups" size="small" border>
-            <el-table-column prop="thread_group_name" label="线程组" min-width="140" />
-            <el-table-column prop="num_threads" label="并发数" width="80" />
-            <el-table-column prop="ramp_time" label="Ramp-up(s)" width="100" />
-            <el-table-column label="循环次数" width="90">
-              <template #default="{ row }">{{ row.loops === -1 ? '无限' : row.loops }}</template>
-            </el-table-column>
-            <el-table-column label="持续时间" width="120">
-              <template #default="{ row }">
-                {{ row.scheduler ? `${row.duration} 秒后停止` : '按循环次数' }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-        <el-empty v-if="!detailRow.scripts?.length" description="未关联脚本" :image-size="60" />
-      </div>
-    </el-dialog>
   </el-card>
 </template>
 
@@ -360,22 +316,5 @@ onMounted(fetchData)
   margin-top: 16px;
   display: flex;
   justify-content: flex-end;
-}
-.detail-scripts {
-  margin-top: 16px;
-}
-.detail-script {
-  & + & {
-    margin-top: 16px;
-  }
-}
-.detail-script-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.detail-script-name {
-  font-weight: 600;
 }
 </style>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { createScenario } from '@/api/scenarios'
-import type { ScenarioScript, Script } from '@/types/api'
+import { createScenario, listScenarios, updateScenario } from '@/api/scenarios'
+import type { Scenario, ScenarioScriptIn, Script } from '@/types/api'
 import type { ScenarioType } from '@/utils/status'
 import ScenarioBasicForm from './components/ScenarioBasicForm.vue'
 import ScriptPicker from './components/ScriptPicker.vue'
@@ -13,17 +13,26 @@ import ScenarioScriptCard from './components/ScenarioScriptCard.vue'
 const route = useRoute()
 const router = useRouter()
 const projectId = Number(route.params.projectId)
+
+// 路由含 :scenarioId 时为编辑态（复用本创建页）
+const scenarioId = Number(route.params.scenarioId)
+const isEdit = computed(() => !Number.isNaN(scenarioId) && scenarioId > 0)
+
 const submitting = ref(false)
+const loading = ref(false)
 const pickerVisible = ref(false)
+const basicFormRef = ref<InstanceType<typeof ScenarioBasicForm>>()
 
 // 页面唯一 state owner，子组件通过 v-model 同步
+// 编辑态脚本关联 = 提交字段 + 仅展示用 script_name
+type FormScript = ScenarioScriptIn & { script_name?: string }
 const form = reactive({
   name: '',
   scenario_type: '单交易基准' as ScenarioType,
   duration: 300,
   description: '',
   param_overrides_str: '{}',
-  scripts: [] as ScenarioScript[],
+  scripts: [] as FormScript[],
 })
 
 // 已选脚本 id（用于 picker 标记/禁用重复添加）
@@ -53,11 +62,66 @@ const handleRemoveScript = (index: number) => {
   excludeIds.splice(0, excludeIds.length, ...form.scripts.map((s) => s.script_id))
 }
 
-const handleSubmit = async () => {
-  if (!form.name.trim()) {
-    ElMessage.warning('请填写场景名称')
+// ---- 编辑态：详情回填 ----
+const fillFromScenario = (s: Scenario) => {
+  form.name = s.name
+  form.scenario_type = s.scenario_type
+  form.duration = s.duration ?? 300
+  form.description = s.description || ''
+  form.param_overrides_str = JSON.stringify(s.param_overrides ?? {}, null, 2)
+  // 浅拷贝关联数据，避免直接改动列表页经 history.state 传入的行对象
+  form.scripts = s.scripts.map((x) => ({
+    script_id: x.script_id,
+    script_name: x.script_name,
+    order_index: x.order_index,
+    agent_tags: [...(x.agent_tags || [])],
+    agent_count: x.agent_count,
+    thread_groups: x.thread_groups.map((t) => ({
+      thread_group_name: t.thread_group_name,
+      testclass: t.testclass,
+      enabled: t.enabled,
+      num_threads: t.num_threads,
+      ramp_time: t.ramp_time,
+      tps: t.tps,
+    })),
+  }))
+  excludeIds.splice(0, excludeIds.length, ...form.scripts.map((s2) => s2.script_id))
+}
+
+onMounted(async () => {
+  if (!isEdit.value) return
+  // 列表跳转时行数据随 history.state 传入，免一次请求
+  const passed = (window.history.state as { scenario?: Scenario } | null)?.scenario
+  if (passed && passed.id === scenarioId) {
+    fillFromScenario(passed)
     return
   }
+  // 刷新/直链进入（state 丢失）：后端无单条详情端点，拉首页列表按 id 兜底
+  loading.value = true
+  try {
+    const res = await listScenarios(projectId, { page: 1, page_size: 100 })
+    const found = res.items.find((x) => x.id === scenarioId)
+    if (!found) {
+      ElMessage.error('场景不存在或无权访问')
+      router.replace(`/projects/${projectId}/scenarios`)
+      return
+    }
+    fillFromScenario(found)
+  } catch {
+    // 拦截器已弹 ElMessage，退回列表避免停留在空白表单
+    router.replace(`/projects/${projectId}/scenarios`)
+  } finally {
+    loading.value = false
+  }
+})
+
+const handleSubmit = async () => {
+  // 基础信息（名称/描述）走 el-form 规则校验，不通过时字段下方显示错误
+  const basicForm = basicFormRef.value
+  const formValid = basicForm
+    ? await basicForm.validate().catch(() => false)
+    : true
+  if (!formValid) return
   if (!form.scripts.length) {
     ElMessage.warning('至少添加一个脚本')
     return
@@ -77,9 +141,9 @@ const handleSubmit = async () => {
 
   submitting.value = true
   try {
-    // 提交前剥离 script_name（前端展示用字段，后端不接受）
+    // 提交前剥离 script_name（前端展示用字段，后端不接受）；名称去首尾空白
     const payload = {
-      name: form.name,
+      name: form.name.trim(),
       scenario_type: form.scenario_type,
       duration: form.duration,
       description: form.description,
@@ -89,11 +153,21 @@ const handleSubmit = async () => {
         order_index: s.order_index,
         agent_tags: s.agent_tags,
         agent_count: s.agent_count,
-        thread_groups: s.thread_groups,
+        // 剥离 script_name（展示用字段），其余含 tps/enabled 原样提交
+        thread_groups: s.thread_groups.map((t) => ({
+          thread_group_name: t.thread_group_name,
+          testclass: t.testclass,
+          enabled: t.enabled,
+          num_threads: t.num_threads,
+          ramp_time: t.ramp_time,
+          tps: t.tps,
+        })),
       })),
     }
-    await createScenario(projectId, payload)
-    ElMessage.success('创建成功')
+    await (isEdit.value
+      ? updateScenario(projectId, scenarioId, payload)
+      : createScenario(projectId, payload))
+    ElMessage.success(isEdit.value ? '保存成功' : '创建成功')
     router.push(`/projects/${projectId}/scenarios`)
   } catch {
     // 拦截器已弹 ElMessage
@@ -106,10 +180,10 @@ const handleCancel = () => router.push(`/projects/${projectId}/scenarios`)
 </script>
 
 <template>
-  <el-card>
+  <el-card v-loading="loading">
     <template #header>
       <div class="header">
-        <span>新建场景</span>
+        <span>{{ isEdit ? '编辑场景' : '新建场景' }}</span>
         <div class="header-actions">
           <el-button @click="handleCancel">取消</el-button>
           <el-button type="primary" :loading="submitting" @click="handleSubmit">
@@ -123,6 +197,7 @@ const handleCancel = () => router.push(`/projects/${projectId}/scenarios`)
     <div class="section">
       <div class="section-title">基础信息</div>
       <ScenarioBasicForm
+        ref="basicFormRef"
         v-model:name="form.name"
         v-model:scenario-type="form.scenario_type"
         v-model:duration="form.duration"

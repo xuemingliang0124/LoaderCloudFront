@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '新建场景', projectScoped: true },
       },
       {
+        path: 'projects/:projectId/scenarios/:scenarioId/edit',
+        name: 'scenario-edit',
+        component: () => import('@/views/scenarios/ScenarioCreate.vue'),
+        meta: { title: '编辑场景', projectScoped: true },
+      },
+      {
         path: 'projects/:projectId/runs',
         name: 'runs',
         component: () => import('@/views/runs/RunList.vue'),

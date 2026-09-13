@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
 import { SCENARIO_TYPE_OPTIONS, type ScenarioType } from '@/utils/status'
 
 // 各字段独立 v-model，便于父组件按需绑定
@@ -10,6 +11,39 @@ const description = defineModel<string>('description', { required: true })
 const paramOverridesStr = defineModel<string>('paramOverridesStr', {
   required: true,
 })
+
+// ---- 表单校验：名称必填（去空白判定），描述选填但限长 ----
+// reactive 会解包内部的 defineModel ref，formModel.name 与 v-model 保持双向同步
+const formModel = reactive({ name, description })
+const formRef = ref<FormInstance>()
+
+const rules: FormRules = {
+  name: [
+    {
+      required: true,
+      trigger: ['blur', 'change'],
+      validator: (_rule, value: string, callback) => {
+        if (!value || !value.trim()) {
+          callback(new Error('请填写场景名称'))
+        } else if (value.length > 128) {
+          callback(new Error('场景名称长度不能超过 128 个字符'))
+        } else {
+          callback()
+        }
+      },
+    },
+  ],
+  description: [
+    { max: 512, trigger: 'blur', message: '描述长度不能超过 512 个字符' },
+  ],
+}
+
+// 供父组件提交前调用；校验不通过时 reject（Element Plus 约定）
+const validate = async (): Promise<boolean> => {
+  if (!formRef.value) return true
+  return formRef.value.validate()
+}
+defineExpose({ validate })
 
 // param_overrides 是对象，输入框需要 JSON 字符串 ↔ 对象互转
 // 父组件持有 string 形式（便于校验），提交时再 JSON.parse
@@ -28,8 +62,8 @@ const paramOverridesError = computed(() => {
 </script>
 
 <template>
-  <el-form label-width="120px" class="basic-form">
-    <el-form-item label="场景名称" required>
+  <el-form ref="formRef" :model="formModel" :rules="rules" label-width="120px" class="basic-form">
+    <el-form-item label="场景名称" prop="name">
       <el-input
         v-model="name"
         placeholder="如：登录接口全链路压测"
@@ -62,7 +96,7 @@ const paramOverridesError = computed(() => {
         {{ paramOverridesError }}
       </span>
     </el-form-item>
-    <el-form-item label="描述">
+    <el-form-item label="描述" prop="description">
       <el-input
         v-model="description"
         type="textarea"

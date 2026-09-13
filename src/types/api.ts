@@ -81,23 +81,34 @@ export interface Script {
   description: string
 }
 
-// 场景内单个线程组的加压参数（对应后端 ThreadGroupSettingIn/Out）
-export interface ThreadGroupSetting {
+// 场景内线程组加压参数——提交/编辑态（对应后端 ThreadGroupSettingIn）
+// 仅保留可编辑字段；scheduler 强制开启、duration 取场景级时长
+export interface ThreadGroupSettingIn {
   thread_group_name: string
   testclass: string
+  enabled: boolean // false 时执行期整组不运行
   num_threads: number
   ramp_time: number
-  loops: number // -1 表示无限循环
+  tps: number // 目标 TPS，0 表示不限速
+}
+
+// 场景内线程组加压参数——后端返回（Out，含调度字段）
+export interface ThreadGroupSetting extends ThreadGroupSettingIn {
   scheduler: boolean
   duration: number // scheduler=false 时为 0
 }
 
-// 场景内单个脚本关联（对应后端 ScenarioScriptIn/Out）
-export interface ScenarioScript {
+// 场景内单个脚本关联——提交/编辑态（对应后端 ScenarioScriptIn）
+export interface ScenarioScriptIn {
   script_id: number
   order_index: number
   agent_tags: string[]
   agent_count: number
+  thread_groups: ThreadGroupSettingIn[]
+}
+
+// 场景内单个脚本关联——后端返回（对应 ScenarioScriptOut）
+export interface ScenarioScript extends ScenarioScriptIn {
   thread_groups: ThreadGroupSetting[]
   // 前端展示用，提交时不发送给后端
   script_name?: string
@@ -107,11 +118,13 @@ export interface ScenarioScript {
 export interface ThreadGroupScan {
   name: string
   testclass: string
+  enabled: boolean
   num_threads: number
   ramp_time: number
   loops: number
   scheduler: boolean
   duration: number
+  tps: number // TPM/60 换算值，可能为小数
 }
 
 // scenario（ScenarioOut / ScenarioIn）
@@ -130,7 +143,7 @@ export interface ScenarioIn {
   duration?: number
   param_overrides?: Record<string, unknown>
   description?: string
-  scripts: ScenarioScript[]
+  scripts: ScenarioScriptIn[]
 }
 
 // 场景删除预检（GET /scenarios/{id}/delete-precheck）

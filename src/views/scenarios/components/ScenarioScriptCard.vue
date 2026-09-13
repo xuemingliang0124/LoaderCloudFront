@@ -2,14 +2,26 @@
 import { computed, onMounted } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import { getThreadGroups } from '@/api/scripts'
-import type { ScenarioScript } from '@/types/api'
+import type { ScenarioScriptIn } from '@/types/api'
 import ThreadGroupTable from './ThreadGroupTable.vue'
 
 const props = defineProps<{ index: number; projectId: number }>()
 const emit = defineEmits<{ remove: [] }>()
 
-// 双向同步整个 ScenarioScript 给父组件
-const script = defineModel<ScenarioScript>({ required: true })
+// 编辑态脚本关联：In 字段 + 仅展示用 script_name
+type ScenarioScriptForm = ScenarioScriptIn & { script_name?: string }
+
+// 双向同步整个脚本关联给父组件
+const script = defineModel<ScenarioScriptForm>({ required: true })
+
+// 当前脚本下【启用】线程组的线程数 / TPS 总和（纯展示，不提交后端）
+const enabledGroups = computed(() => script.value.thread_groups.filter((g) => g.enabled))
+const totalThreads = computed(() =>
+  enabledGroups.value.reduce((sum, g) => sum + (g.num_threads || 0), 0),
+)
+const totalTps = computed(() =>
+  enabledGroups.value.reduce((sum, g) => sum + (g.tps || 0), 0),
+)
 
 // agent_tags 是 string[]，输入框需要逗号字符串 ↔ 数组互转
 const agentTagsStr = computed({
@@ -30,11 +42,11 @@ onMounted(async () => {
     script.value.thread_groups = res.thread_groups.map((tg) => ({
       thread_group_name: tg.name,
       testclass: tg.testclass,
+      enabled: tg.enabled,
       num_threads: tg.num_threads,
       ramp_time: tg.ramp_time,
-      loops: tg.loops,
-      scheduler: tg.scheduler,
-      duration: tg.duration,
+      // 扫描值 TPM/60 可能为小数，提交入参为 int TPS
+      tps: Math.round(tg.tps),
     }))
   } catch {
     // 拦截器已弹 ElMessage
@@ -58,6 +70,14 @@ const handleRemove = () => emit('remove')
       </div>
     </template>
     <div class="card-meta">
+      <span class="meta-item meta-summary">
+        <span class="meta-label">启用线程数</span>
+        <span class="meta-value">{{ totalThreads }}</span>
+      </span>
+      <span class="meta-item meta-summary">
+        <span class="meta-label">总 TPS</span>
+        <span class="meta-value">{{ totalTps }}</span>
+      </span>
       <label class="meta-item">
         <span class="meta-label">Agent 标签</span>
         <el-input
@@ -109,5 +129,11 @@ const handleRemove = () => emit('remove')
 }
 .meta-tags {
   width: 240px;
+}
+.meta-summary {
+  .meta-value {
+    font-weight: 600;
+    color: var(--el-color-primary);
+  }
 }
 </style>

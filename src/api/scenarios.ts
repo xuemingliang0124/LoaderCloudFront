@@ -11,6 +11,17 @@ import type {
 export const createScenario = (project_id: number, payload: ScenarioIn) =>
   request.post<unknown, Scenario>(`/projects/${project_id}/scenarios`, payload)
 
+// 更新场景（editor+）：基础信息 + 关联脚本全量替换；存在运行中任务时后端拒绝（code 3014）
+export const updateScenario = (
+  project_id: number,
+  scenario_id: number,
+  payload: ScenarioIn,
+) =>
+  request.put<unknown, Scenario>(
+    `/projects/${project_id}/scenarios/${scenario_id}`,
+    payload,
+  )
+
 // 分页 + 按名称模糊查询
 export interface ScenarioQuery {
   name?: string
