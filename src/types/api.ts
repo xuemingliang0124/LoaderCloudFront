@@ -189,6 +189,44 @@ export interface TimeseriesPoint {
   error_rate: number // 百分比 0~100（后端已从 0~1 比率 *100）
 }
 
+// 运行结果汇总（GET /runs/{run_no}/summary）
+// data.summary 为全程聚合统计（含 by_label 明细）；响应时间单位均为 ms，avg_tps 为平均吞吐量(次/秒)
+// 成功率前端按 success/samples*100 计算
+export interface RunSummaryStats {
+  samples: number // 样本数
+  success: number // 成功数
+  errors: number // 错误数
+  min_rt: number // 最小响应时间(ms)
+  avg_rt: number // 平均响应时间(ms)
+  max_rt: number // 最大响应时间(ms)
+  p95_rt: number // 95 分位响应时间(ms)
+  avg_tps: number // 平均吞吐量(次/秒)
+}
+
+// 按 label（请求/事务名）分组的明细行
+export interface RunSummaryByLabel extends RunSummaryStats {
+  label: string
+  sample_type: 'request' | 'transaction'
+}
+
+// 全程聚合统计 = 公共统计字段 + 按 label 分组的明细列表
+export interface RunSummary extends RunSummaryStats {
+  by_label: RunSummaryByLabel[]
+}
+
+export interface RunSummaryArtifact {
+  key: string
+  type: string
+}
+
+export interface RunSummaryResponse {
+  agents: string[]
+  failed_agents: string[]
+  summary: RunSummary
+  artifacts: RunSummaryArtifact[]
+  stopped: boolean
+}
+
 // ===== 项目 / 项目成员 / 用户（项目管理 + 权限模型）=====
 
 // 项目（ProjectOut）：my_role 为当前用户在该项目的角色（中文：项目管理员/编辑者/观察者）

@@ -3,10 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTimeseries } from '@/api/metrics'
-import { getRun, stopRun } from '@/api/runs'
-import type { Run, TimeseriesPoint } from '@/types/api'
+import { getRun, getRunRealtimeSummary, getRunSummary, stopRun } from '@/api/runs'
+import type { Run, RunSummary, RunSummaryByLabel, RunSummaryResponse, TimeseriesPoint } from '@/types/api'
 import { echarts, type EChartsType } from '@/utils/echarts'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatNumber, formatPercent } from '@/utils/format'
 import { isRunActive, isRunStoppable, runStatusTagType, runStatusText } from '@/utils/status'
 
 const route = useRoute()
@@ -21,12 +21,15 @@ let timer: number | null = null
 const run = ref<Run | null>(null)
 const loading = ref(false)
 
-const metricTabs = [
+// 汇总结果与三个指标曲线平级；默认进入页面展示汇总结果
+const tabs = [
+  { key: 'summary', label: '汇总结果' },
   { key: 'tps', label: 'TPS' },
   { key: 'avg_rt', label: '平均响应时间(ms)' },
   { key: 'error_rate', label: '错误率(%)' },
 ]
-const activeMetric = ref<'tps' | 'avg_rt' | 'error_rate'>('tps')
+const activeTab = ref<'summary' | 'tps' | 'avg_rt' | 'error_rate'>('summary')
+const isSummaryTab = computed(() => activeTab.value === 'summary')
 
 // ---- 查询条件区：统计类型 + 时间范围 ----
 // '' = 全部（不传 sample_type，后端返回含 request/transaction 两类点）
@@ -36,6 +39,52 @@ const timeRange = ref<[Date, Date] | null>(null)
 const canStop = computed(() => !!run.value && isRunStoppable(run.value.status))
 const stopping = ref(false)
 const querying = ref(false)
+
+// ---- 测试结果汇总 ----
+// 终态：summaryData（含 agents/artifacts 等外层包装）；运行中：realtimeSummary（仅全程聚合 + by_label）
+// 运行中实时刷新 realtime-summary（5s 粒度，p95 为近似值），翻终态后切换为 summary（精确值）
+const summaryData = ref<RunSummaryResponse | null>(null)
+const realtimeSummary = ref<RunSummary | null>(null)
+const summaryLoading = ref(false)
+const fetchSummary = async () => {
+  summaryLoading.value = true
+  try {
+    if (isRunActive(run.value?.status)) {
+      // 运行中：调 realtime-summary（不抛 2004，p95 近似、avg_tps 窗口口径）
+      realtimeSummary.value = await getRunRealtimeSummary(runNo)
+      summaryData.value = null
+    } else {
+      // 终态：调 summary（精确值，含 agents/artifacts 外层包装）
+      summaryData.value = await getRunSummary(runNo)
+      realtimeSummary.value = null
+    }
+  } catch {
+    // 拦截器已弹 ElMessage
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+// 展示用统一入口：运行中取 realtimeSummary，终态取 summaryData.summary
+const displaySummary = computed<RunSummary | null>(() => {
+  if (realtimeSummary.value) return realtimeSummary.value
+  return summaryData.value?.summary ?? null
+})
+const isRealtime = computed(() => realtimeSummary.value !== null)
+
+// 按统计类型过滤 by_label 明细（后端默认返回 request/transaction 两类，前端按 statType 区分）
+// 同时过滤掉 label 含 _total 的合计行，避免在明细表中重复展示
+const byLabelRows = computed<RunSummaryByLabel[]>(() => {
+  const rows = (displaySummary.value?.by_label ?? []).filter(
+    (r) => !r.label.toLowerCase().includes('_total'),
+  )
+  if (!statType.value) return rows
+  return rows.filter((r) => r.sample_type === statType.value)
+})
+
+// 成功率前端计算：success / samples * 100
+const successRateOf = (samples: number, success: number): number =>
+  samples > 0 ? (success / samples) * 100 : 0
 
 const fetchRun = async () => {
   // 调用执行记录详情接口，直接按 run_no 取单条（2003/3022 由拦截器处理）
@@ -50,16 +99,18 @@ const SAMPLE_TYPE_TEXT: Record<string, string> = { request: '请求', transactio
 
 const render = (rows: TimeseriesPoint[]) => {
   if (!chart) return
+  // 过滤掉 label 含 _total 的合计行，避免在曲线中重复展示
+  const filtered = rows.filter((r) => !r.label.toLowerCase().includes('_total'))
   // 全部模式下同 label 会有 request/transaction 两类点，序列名带类型后缀区分；
   // 指定统计类型时后端只返回单类点，直接用 label
   const seriesKeyOf = (r: TimeseriesPoint) =>
     statType.value === ''
       ? `${r.label}（${SAMPLE_TYPE_TEXT[r.sample_type ?? ''] ?? r.sample_type ?? '全部'}）`
       : r.label
-  const keys = [...new Set(rows.map(seriesKeyOf))]
+  const keys = [...new Set(filtered.map(seriesKeyOf))]
   const valueOf = (r: TimeseriesPoint) => {
-    if (activeMetric.value === 'tps') return r.tps
-    if (activeMetric.value === 'avg_rt') return r.avg_rt
+    if (activeTab.value === 'tps') return r.tps
+    if (activeTab.value === 'avg_rt') return r.avg_rt
     return r.error_rate
   }
   const series = keys.map((key) => ({
@@ -67,7 +118,7 @@ const render = (rows: TimeseriesPoint[]) => {
     type: 'line',
     smooth: true,
     showSymbol: false,
-    data: rows
+    data: filtered
       .filter((r) => seriesKeyOf(r) === key)
       .map((r) => [r.ts * 1000, valueOf(r)]),
   }))
@@ -79,7 +130,7 @@ const render = (rows: TimeseriesPoint[]) => {
       xAxis: { type: 'time' },
       yAxis: {
         type: 'value',
-        name: metricTabs.find((m) => m.key === activeMetric.value)?.label,
+        name: tabs.find((m) => m.key === activeTab.value)?.label,
       },
       series,
     },
@@ -136,10 +187,16 @@ const poll = async () => {
 const handleQuery = async () => {
   querying.value = true
   try {
-    await poll()
+    await Promise.all([poll(), fetchSummary()])
   } finally {
     querying.value = false
   }
+}
+
+// 统计类型切换同时刷新曲线与汇总
+const handleStatTypeChange = () => {
+  poll()
+  fetchSummary()
 }
 
 const handleStop = async () => {
@@ -158,32 +215,51 @@ const handleStop = async () => {
 let tickCount = 0
 const startPolling = () => {
   timer = window.setInterval(async () => {
-    await poll()
+    // 运行中每 5s 同时刷新曲线与实时汇总；fetchSummary 内部按 run 状态分支
+    await Promise.all([poll(), fetchSummary()])
     // 每 60s 刷新一次 run 状态；翻终态后停止轮询并按全程窗口补查一次
     tickCount += 1
     if (tickCount % 12 === 0) {
       await fetchRun()
+      await fetchSummary()
       if (!isRunActive(run.value?.status) && timer) {
         clearInterval(timer)
         timer = null
         await poll()
+        await fetchSummary()
       }
     }
   }, 5000)
 }
 
-const handleMetricChange = () => poll()
+const handleTabChange = async (name: string) => {
+  if (name === 'summary') {
+    await fetchSummary()
+  } else {
+    await poll()
+    // 切到指标标签时容器由隐藏变可见，需触发 resize 让 ECharts 重算尺寸
+    chart?.resize()
+  }
+}
 
 onMounted(async () => {
   loading.value = true
   await fetchRun()
   loading.value = false
+  // 时间范围默认带上场景起止时间；end_time 缺失（运行中）时取当前时间
+  if (run.value?.start_time) {
+    const start = new Date(run.value.start_time)
+    const end = run.value.end_time ? new Date(run.value.end_time) : new Date()
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      timeRange.value = [start, end]
+    }
+  }
   if (chartRef.value) {
     chart = echarts.init(chartRef.value)
-    await poll()
-    // 仅运行中轮询；终态 run 查一次全程即可
-    if (isRunActive(run.value?.status)) startPolling()
   }
+  await Promise.all([poll(), fetchSummary()])
+  // 仅运行中轮询；终态 run 查一次全程即可
+  if (isRunActive(run.value?.status)) startPolling()
 })
 
 onBeforeUnmount(() => {
@@ -221,7 +297,7 @@ onBeforeUnmount(() => {
     <div class="toolbar">
       <div class="toolbar__item">
         <span class="toolbar__label">统计类型</span>
-        <el-radio-group v-model="statType" @change="poll">
+        <el-radio-group v-model="statType" @change="handleStatTypeChange">
           <el-radio value="">全部</el-radio>
           <el-radio value="transaction">事务</el-radio>
           <el-radio value="request">请求</el-radio>
@@ -250,16 +326,77 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <el-tabs v-model="activeMetric" @tab-change="handleMetricChange" class="tabs">
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="tabs">
       <el-tab-pane
-        v-for="m in metricTabs"
-        :key="m.key"
-        :label="m.label"
-        :name="m.key"
+        v-for="t in tabs"
+        :key="t.key"
+        :label="t.label"
+        :name="t.key"
       />
     </el-tabs>
 
-    <div ref="chartRef" class="chart" />
+    <div ref="chartRef" v-show="!isSummaryTab" class="chart" />
+
+    <div v-show="isSummaryTab" v-loading="summaryLoading" class="summary">
+      <div v-if="displaySummary" class="summary__header">
+        <el-tag v-if="isRealtime" type="warning" size="small">实时（p95 近似、avg_tps 窗口径）</el-tag>
+      </div>
+      <el-descriptions
+        v-if="displaySummary"
+        :column="4"
+        border
+        size="small"
+        class="summary__overall"
+      >
+        <el-descriptions-item label="平均响应时间(ms)">{{ formatNumber(displaySummary.avg_rt, 0) }}</el-descriptions-item>
+        <el-descriptions-item label="最小(ms)">{{ formatNumber(displaySummary.min_rt, 0) }}</el-descriptions-item>
+        <el-descriptions-item label="最大(ms)">{{ formatNumber(displaySummary.max_rt, 0) }}</el-descriptions-item>
+        <el-descriptions-item label="P95(ms)">{{ formatNumber(displaySummary.p95_rt, 0) }}</el-descriptions-item>
+        <el-descriptions-item label="平均TPS">{{ formatNumber(displaySummary.avg_tps, 2) }}</el-descriptions-item>
+        <el-descriptions-item label="成功">{{ displaySummary.success }}</el-descriptions-item>
+        <el-descriptions-item label="错误">{{ displaySummary.errors }}</el-descriptions-item>
+        <el-descriptions-item label="样本总数">{{ displaySummary.samples }}</el-descriptions-item>
+        <el-descriptions-item label="成功率">
+          {{ formatPercent(successRateOf(displaySummary.samples, displaySummary.success)) }}
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <el-table
+        :data="byLabelRows"
+        stripe
+        border
+        size="small"
+        class="summary__table"
+      >
+        <el-table-column prop="label" label="名称" min-width="180" show-overflow-tooltip />
+        <el-table-column v-if="statType === ''" label="统计类型" width="90">
+          <template #default="{ row }">
+            {{ SAMPLE_TYPE_TEXT[row.sample_type] ?? row.sample_type }}
+          </template>
+        </el-table-column>
+        <el-table-column label="平均响应时间(ms)" width="130" align="right">
+          <template #default="{ row }">{{ formatNumber(row.avg_rt, 0) }}</template>
+        </el-table-column>
+        <el-table-column label="最小(ms)" width="90" align="right">
+          <template #default="{ row }">{{ formatNumber(row.min_rt, 0) }}</template>
+        </el-table-column>
+        <el-table-column label="最大(ms)" width="90" align="right">
+          <template #default="{ row }">{{ formatNumber(row.max_rt, 0) }}</template>
+        </el-table-column>
+        <el-table-column label="P95(ms)" width="90" align="right">
+          <template #default="{ row }">{{ formatNumber(row.p95_rt, 0) }}</template>
+        </el-table-column>
+        <el-table-column label="平均TPS" width="100" align="right">
+          <template #default="{ row }">{{ formatNumber(row.avg_tps, 2) }}</template>
+        </el-table-column>
+        <el-table-column prop="success" label="成功" width="80" align="right" />
+        <el-table-column prop="errors" label="错误" width="80" align="right" />
+        <el-table-column prop="samples" label="样本总数" width="90" align="right" />
+        <el-table-column label="成功率" width="90" align="right">
+          <template #default="{ row }">{{ formatPercent(successRateOf(row.samples, row.success)) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
   </el-card>
 </template>
 
@@ -310,5 +447,13 @@ onBeforeUnmount(() => {
 }
 .chart {
   height: 420px;
+}
+.summary {
+  &__header {
+    margin-bottom: 8px;
+  }
+  &__overall {
+    margin-bottom: 16px;
+  }
 }
 </style>

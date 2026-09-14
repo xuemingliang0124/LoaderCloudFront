@@ -1,5 +1,11 @@
 import request from './request'
-import type { PageResult, Run, RunCreateResult } from '@/types/api'
+import type {
+  PageResult,
+  Run,
+  RunCreateResult,
+  RunSummary,
+  RunSummaryResponse,
+} from '@/types/api'
 
 // 唯一分页列表
 export const listRuns = (project_id: number, page = 1, page_size = 20) =>
@@ -26,3 +32,16 @@ export const createRun = (
 
 export const stopRun = (project_id: number, run_no: string) =>
   request.post<unknown, void>(`/projects/${project_id}/runs/${run_no}/stop`)
+
+// 运行结果汇总（GET /runs/{run_no}/summary），返回全程聚合 + 按 label 分组的明细
+// 后端默认返回含 request/transaction 两类 by_label 行，统计类型由前端过滤
+export const getRunSummary = (run_no: string) =>
+  request.get<unknown, RunSummaryResponse>(`/runs/${encodeURIComponent(run_no)}/summary`)
+
+// 执行期实时汇总（GET /runs/{run_no}/realtime-summary）
+// 与终态 /summary 差异：执行中可查（不抛 2004）、p95 为 tdigest 近似值、
+// avg_tps 用窗口口径；返回体无 agents/failed_agents/artifacts/stopped 外层包装
+export const getRunRealtimeSummary = (run_no: string) =>
+  request.get<unknown, RunSummary>(
+    `/runs/${encodeURIComponent(run_no)}/realtime-summary`,
+  )
