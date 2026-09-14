@@ -16,7 +16,9 @@ const runNo = route.params.runNo as string
 
 const chartRef = ref<HTMLDivElement>()
 let chart: EChartsType | null = null
-let timer: number | null = null
+// 曲线与实时汇总用各自独立的定时器：曲线 5s 近实时，实时汇总 30s
+let chartTimer: number | null = null
+let summaryTimer: number | null = null
 
 const run = ref<Run | null>(null)
 const loading = ref(false)
@@ -212,24 +214,48 @@ const handleStop = async () => {
   }
 }
 
+// 实时汇总轮询间隔：汇总为全程聚合口径，30s 一次即可；曲线仍保持 5s 近实时
+const SUMMARY_POLL_MS = 30000
+
+const stopPolling = () => {
+  if (chartTimer) {
+    clearInterval(chartTimer)
+    chartTimer = null
+  }
+  if (summaryTimer) {
+    clearInterval(summaryTimer)
+    summaryTimer = null
+  }
+}
+
 let tickCount = 0
 const startPolling = () => {
-  timer = window.setInterval(async () => {
-    // 运行中每 5s 同时刷新曲线与实时汇总；fetchSummary 内部按 run 状态分支
-    await Promise.all([poll(), fetchSummary()])
+  // 指标曲线：每 5s 滚动刷新；实时汇总不在此 tick 内，走独立的 30s 定时器
+  chartTimer = window.setInterval(async () => {
+    await poll()
     // 每 60s 刷新一次 run 状态；翻终态后停止轮询并按全程窗口补查一次
     tickCount += 1
     if (tickCount % 12 === 0) {
       await fetchRun()
-      await fetchSummary()
-      if (!isRunActive(run.value?.status) && timer) {
-        clearInterval(timer)
-        timer = null
-        await poll()
-        await fetchSummary()
+      if (!isRunActive(run.value?.status)) {
+        stopPolling()
+        // 翻终态：把时间选择器固定为场景起止全程（运行中为 null，走的是滚动窗口）
+        if (run.value?.start_time) {
+          const start = new Date(run.value.start_time)
+          const end = run.value.end_time ? new Date(run.value.end_time) : new Date()
+          if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+            timeRange.value = [start, end]
+          }
+        }
+        // 终态补查一次精确汇总（/summary）与全程曲线
+        await Promise.all([poll(), fetchSummary()])
       }
     }
   }, 5000)
+  // 实时汇总：每 30s 一次；fetchSummary 内部按 run 状态分支（活跃态走 realtime-summary）
+  summaryTimer = window.setInterval(() => {
+    fetchSummary()
+  }, SUMMARY_POLL_MS)
 }
 
 const handleTabChange = async (name: string) => {
@@ -246,8 +272,9 @@ onMounted(async () => {
   loading.value = true
   await fetchRun()
   loading.value = false
-  // 时间范围默认带上场景起止时间；end_time 缺失（运行中）时取当前时间
-  if (run.value?.start_time) {
+  // 终态默认带场景起止时间查全程；运行中不预填——buildWindow 对活跃态走
+  // start_time~now 自动滚动窗口，预填固定 end 会让 5s 轮询冻结在进页面时刻
+  if (!isRunActive(run.value?.status) && run.value?.start_time) {
     const start = new Date(run.value.start_time)
     const end = run.value.end_time ? new Date(run.value.end_time) : new Date()
     if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
@@ -263,10 +290,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+  stopPolling()
   chart?.dispose()
   chart = null
 })
@@ -286,7 +310,7 @@ onBeforeUnmount(() => {
 
     <el-descriptions v-if="run" :column="3" border class="info">
       <el-descriptions-item label="Run No">{{ run.run_no }}</el-descriptions-item>
-      <el-descriptions-item label="场景">scenario #{{ run.scenario_id }}</el-descriptions-item>
+      <el-descriptions-item label="场景">{{ run.scenario_name || '-' }}</el-descriptions-item>
       <el-descriptions-item label="触发方式">{{ run.trigger }}</el-descriptions-item>
       <el-descriptions-item label="Agent">{{ run.agent_ids?.length || 0 }} 台</el-descriptions-item>
       <el-descriptions-item label="开始时间">{{ formatDateTime(run.start_time) }}</el-descriptions-item>

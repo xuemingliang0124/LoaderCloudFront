@@ -132,8 +132,8 @@ onMounted(fetchData)
     <el-table v-loading="loading" :data="runs" stripe>
       <el-table-column prop="id" label="ID" width="70" />
       <el-table-column prop="run_no" label="Run No" min-width="200" />
-      <el-table-column label="场景" width="100">
-        <template #default="{ row }">scenario #{{ row.scenario_id }}</template>
+      <el-table-column label="场景" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.scenario_name || '-' }}</template>
       </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">

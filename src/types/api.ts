@@ -47,6 +47,7 @@ export interface Run {
   id: number
   run_no: string
   scenario_id: number
+  scenario_name: string // 接口层按 scenario_id 关联填充，ORM 无此列
   status: string // pending | running | stopping | finished | partial | failed | stopped
   trigger: string // manual | scheduled
   agent_ids: string[] | null
