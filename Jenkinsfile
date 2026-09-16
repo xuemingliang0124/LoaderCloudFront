@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://your-git-server/LoaderCloudFrontV2.git'
+                git branch: 'main', url: 'https://github.com/xuemingliang0124/LoaderCloudFront.git'
             }
         }
 
