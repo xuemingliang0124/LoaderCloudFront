@@ -1,0 +1,14 @@
+services:
+  frontend:
+    # image 字段决定构建后镜像的完整名称，docker compose build 自动打 tag，
+    # docker compose push 可直接推送到阿里云仓库，无需手动 docker tag
+    image: ${REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_TAG}
+    build: .
+    container_name: loader-cloud-frontend
+    ports:
+      - "80:80"
+    environment:
+      # 后端在另一台机器，请替换为实际 IP/域名
+      - BACKEND_HOST=192.168.1.100
+      - BACKEND_PORT=8000
+    restart: unless-stopped
