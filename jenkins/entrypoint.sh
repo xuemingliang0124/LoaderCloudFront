@@ -76,7 +76,18 @@ chown jenkins:jenkins "$UC_XML"
   done
 ) &
 
-# ===== 4. 对齐宿主机 docker.sock 的 GID =====
+# ===== 4. 预置 GitHub SSH host key =====
+# 避免 Jenkins 首次通过 SSH 拉代码时因 known_hosts 为空报 Host key verification failed
+SSH_DIR="${JENKINS_HOME_DIR}/.ssh"
+KNOWN_HOSTS="${SSH_DIR}/known_hosts"
+mkdir -p "$SSH_DIR"
+if ! grep -q '^github.com ' "$KNOWN_HOSTS" 2>/dev/null; then
+  ssh-keyscan -t ed25519,rsa,ecdsa github.com >> "$KNOWN_HOSTS" 2>/dev/null || true
+fi
+chown -R jenkins:jenkins "$SSH_DIR"
+chmod 700 "$SSH_DIR"
+
+# ===== 5. 对齐宿主机 docker.sock 的 GID =====
 SOCK_GID=$(stat -c '%g' /var/run/docker.sock)
 
 if ! getent group "$SOCK_GID" >/dev/null 2>&1; then

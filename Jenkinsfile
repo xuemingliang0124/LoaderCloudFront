@@ -9,7 +9,11 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/xuemingliang0124/LoaderCloudFront.git'
+                // 使用 SSH 方式拉取；凭据 github-ssh 需在 Jenkins 中配置
+                // （Kind: SSH Username with private key，私钥对应公钥已添加到 GitHub）
+                git branch: 'main',
+                    credentialsId: 'github-ssh',
+                    url: 'git@github.com:xuemingliang0124/LoaderCloudFront.git'
             }
         }
 
