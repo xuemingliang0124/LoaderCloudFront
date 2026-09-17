@@ -32,8 +32,12 @@ pipeline {
                         FULL_IMAGE="${REGISTRY}/${IMAGE_NAME}:${TAG}"
                         LATEST_IMAGE="${REGISTRY}/${IMAGE_NAME}:latest"
 
-                        # 登录阿里云镜像仓库
-                        echo "$REG_PASS" | docker login --username "$REG_USER" --password-stdin ${REGISTRY}
+                        # docker login 只接受纯仓库域名，去掉命名空间 /xml066
+                        REGISTRY_HOST="${REGISTRY%%/*}"
+
+                        # 登录阿里云镜像仓库（HOME 指向 jenkins 家目录，确保 config.json 可写）
+                        export HOME=/var/jenkins_home
+                        echo "$REG_PASS" | docker login --username "$REG_USER" --password-stdin "$REGISTRY_HOST"
 
                         # 构建镜像，同时打上 commit hash 和 latest 两个标签
                         docker build -t "$FULL_IMAGE" -t "$LATEST_IMAGE" .

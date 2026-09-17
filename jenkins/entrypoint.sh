@@ -97,6 +97,10 @@ fi
 GROUP_NAME=$(getent group "$SOCK_GID" | cut -d: -f1)
 usermod -aG "$GROUP_NAME" jenkins
 
+# 修正 HOME：setpriv 只切 uid 不改环境变量，HOME 仍为 /root，
+# 导致 docker login 无法写入 ~/.docker/config.json。显式设为 jenkins 的家目录。
+export HOME="${JENKINS_HOME_DIR}"
+
 # 降权为 jenkins 用户并启动官方启动脚本。
 # 使用 setpriv（util-linux 自带，新版 jenkins 镜像已不含 gosu），
 # --init-groups 会根据 /etc/group 初始化附属组（含上面加入的 socket 组），
