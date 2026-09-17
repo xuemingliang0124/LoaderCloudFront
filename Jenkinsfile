@@ -70,9 +70,21 @@ pipeline {
         stage('Health Check') {
             steps {
                 sh '''
-                    sleep 3
-                    curl -sf http://localhost/ || exit 1
-                    echo "Frontend is up"
+                    # 前端容器映射的是宿主机 :80，但本脚本在 jenkins 容器内执行，
+                    # localhost 指向 jenkins 自身无法访问到 frontend。
+                    # 这里直接在 frontend 容器内执行 curl 验证 nginx 服务，不依赖网络。
+                    CONTAINER=loader-cloud-frontend
+                    for i in 1 2 3 4 5 6 7 8 9 10; do
+                      if docker exec "$CONTAINER" curl -sf http://localhost/ >/dev/null 2>&1; then
+                        echo "Frontend is up (attempt $i)"
+                        exit 0
+                      fi
+                      echo "Frontend not ready yet, attempt $i/10, retry in 3s..."
+                      sleep 3
+                    done
+                    echo "ERROR: Frontend health check failed after 10 retries"
+                    docker logs --tail 30 "$CONTAINER"
+                    exit 1
                 '''
             }
         }
