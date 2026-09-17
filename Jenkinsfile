@@ -37,6 +37,7 @@ pipeline {
 
                         # 登录阿里云镜像仓库（HOME 指向 jenkins 家目录，确保 config.json 可写）
                         export HOME=/var/jenkins_home
+                        echo "$REG_USER"
                         echo "$REG_PASS" | docker login --username "$REG_USER" --password-stdin "$REGISTRY_HOST"
 
                         # 构建镜像，同时打上 commit hash 和 latest 两个标签
