@@ -11,7 +11,8 @@ pipeline {
             steps {
                 // 使用 SSH 方式拉取；凭据 github-ssh 需在 Jenkins 中配置
                 // （Kind: SSH Username with private key，私钥对应公钥已添加到 GitHub）
-                git branch: 'main',
+                // 注意：该仓库默认分支是 master，不是 main
+                git branch: 'master',
                     credentialsId: 'github-ssh',
                     url: 'git@github.com:xuemingliang0124/LoaderCloudFront.git'
             }
