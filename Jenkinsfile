@@ -58,9 +58,25 @@ pipeline {
             steps {
                 sh '''
                     TAG=$(git rev-parse --short HEAD)
-                    # 拉取刚推送的镜像并启动（FRONTEND_TAG 覆盖 compose 里的默认 latest）
-                    FRONTEND_TAG="$TAG" docker compose -f docker-compose.yml pull frontend
-                    FRONTEND_TAG="$TAG" docker compose -f docker-compose.yml up -d frontend
+
+                    # ===== .env 生成策略 =====
+                    # .env 已被 gitignore，Jenkins 拉取代码后工作区无 .env，
+                    # 因此从仓库内的 .env.example（默认全量配置模板）生成 .env，
+                    # 再用 Jenkins 构建参数覆盖需要差异化的项。
+                    # 三层优先级：Jenkins 构建参数 > .env.example 默认值 > docker-compose.yml 默认值
+                    cp .env.example .env
+
+                    # Jenkins 参数非空时覆盖 .env 中对应配置（未配置则保留 .env.example 默认值）
+                    # 后续新增环境配置：在 .env.example 加一行 + Jenkins 按需加同名 String Parameter 即可
+                    [ -n "$BACKEND_HOST" ] && sed -i "s/^BACKEND_HOST=.*/BACKEND_HOST=$BACKEND_HOST/" .env
+                    [ -n "$BACKEND_PORT" ] && sed -i "s/^BACKEND_PORT=.*/BACKEND_PORT=$BACKEND_PORT/" .env
+
+                    # FRONTEND_TAG 必须用本次构建的 commit hash，强制覆盖
+                    sed -i "s/^FRONTEND_TAG=.*/FRONTEND_TAG=$TAG/" .env
+
+                    # 拉取刚推送的镜像并启动（docker compose 自动加载 .env）
+                    docker compose -f docker-compose.yml pull frontend
+                    docker compose -f docker-compose.yml up -d frontend
                     # 清理旧镜像
                     docker image prune -f
                 '''

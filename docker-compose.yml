@@ -8,7 +8,7 @@ services:
     ports:
       - "80:80"
     environment:
-      # 后端在另一台机器，请替换为实际 IP/域名
-      - BACKEND_HOST=192.168.1.100
-      - BACKEND_PORT=8000
+      # 后端地址从 .env 读取，也可被环境变量覆盖（优先级：shell env > .env > 默认值）
+      - BACKEND_HOST=${BACKEND_HOST:-192.168.1.100}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
     restart: unless-stopped
