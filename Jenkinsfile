@@ -47,7 +47,10 @@ pipeline {
                         docker push "$FULL_IMAGE"
                         docker push "$LATEST_IMAGE"
 
-                        # 清理 dangling 镜像
+                        # 镜像已推送到仓库，本地不再保留，立即删除刚构建的两个标签
+                        docker rmi -f "$FULL_IMAGE" "$LATEST_IMAGE" 2>/dev/null || true
+
+                        # 清理构建过程产生的 dangling 中间层
                         docker image prune -f
                     '''
                 }
@@ -79,8 +82,9 @@ pipeline {
                     # 强制移除同名旧容器（可能是早期手动部署、非本 compose 项目创建的），避免容器名冲突
                     docker rm -f loader-cloud-frontend 2>/dev/null || true
                     docker compose -f docker-compose.yml up -d frontend
-                    # 清理旧镜像
-                    docker image prune -f
+                    # 清理所有未被容器使用的镜像（历史构建镜像已上传仓库，无需保留）
+                    # 注意：-a 会扫描整个 docker host，正在运行的容器所依赖的镜像不受影响
+                    docker image prune -af
                 '''
             }
         }
