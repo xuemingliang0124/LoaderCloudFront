@@ -76,6 +76,8 @@ pipeline {
 
                     # 拉取刚推送的镜像并启动（docker compose 自动加载 .env）
                     docker compose -f docker-compose.yml pull frontend
+                    # 强制移除同名旧容器（可能是早期手动部署、非本 compose 项目创建的），避免容器名冲突
+                    docker rm -f loader-cloud-frontend 2>/dev/null || true
                     docker compose -f docker-compose.yml up -d frontend
                     # 清理旧镜像
                     docker image prune -f
