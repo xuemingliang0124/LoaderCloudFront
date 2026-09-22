@@ -365,3 +365,147 @@ export interface PluginSyncResult {
   plugin_id: number
   pushed_to: number
 }
+
+// ===== 资产管理（项目作用域文档资产，对应后端 assets.py）=====
+// 资产类型（AssetType value，小写）：决定 D3 解析管道走向与列映射规则
+export type AssetType =
+  | 'plan_doc'
+  | 'env_inventory'
+  | 'txn_inventory'
+  | 'sla_doc'
+  | 'architecture_doc'
+
+// 解析状态机：PENDING → PARSING → READY / FAILED
+export type AssetStatus = 'pending' | 'parsing' | 'ready' | 'failed'
+
+// 资产（AssetOut）：文件本体存 MinIO，元数据与解析状态入 MySQL
+export interface Asset {
+  id: number
+  project_id: number
+  name: string
+  asset_type: AssetType
+  status: AssetStatus
+  filename: string
+  file_key: string
+  hash_sha256: string
+  file_size: number
+  content_type: string
+  description: string
+  parse_meta: Record<string, unknown> | null
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+// 上传返回：reused=true 表示同 hash 复用既有记录，未重复存 MinIO
+export interface AssetUploadResult extends Asset {
+  reused: boolean
+}
+
+// 更新请求：name/description/asset_type 至少传一项
+export interface AssetUpdateIn {
+  name?: string
+  description?: string
+  asset_type?: AssetType
+}
+
+// 列表查询参数
+export interface AssetQuery {
+  name?: string
+  asset_type?: AssetType
+  status?: AssetStatus
+  page?: number
+  page_size?: number
+}
+
+// 删除返回
+export interface AssetDeleteResult {
+  id: number
+  project_id: number
+  deleted: boolean
+}
+
+// 重试解析返回：queued=true 表示已重新投递 D3 解析任务
+export interface AssetRetryResult {
+  id: number
+  status: AssetStatus
+  queued: boolean
+}
+
+// 知识检索单条命中（含相似度分）
+export interface KnowledgeSearchItem {
+  citation: string
+  content: string
+  score: number
+  asset_id: number | null
+  asset_type: string
+  chunk_index: number
+}
+export interface KnowledgeSearchResult {
+  total: number
+  items: KnowledgeSearchItem[]
+}
+
+// ===== 交易清单管理（项目作用域被测交易资产，对应后端 transactions.py）=====
+// 交易是场景编排的语义单元：一个交易可对应多版本 JMX 脚本，
+// default_script_id 为弱关联（nullable，仅标记默认执行版本）
+// (project_id, txn_code) 项目内唯一
+export interface Transaction {
+  id: number
+  project_id: number
+  name: string
+  txn_code: string
+  default_script_id: number | null
+  sla_tps: number | null // 目标吞吐量（次/秒）
+  sla_p95_ms: number | null // P95 响应时间（毫秒）
+  sla_error_rate: number | null // 错误率上限（百分比 0-100）
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+// 新建交易请求
+export interface TransactionIn {
+  name: string
+  txn_code: string
+  default_script_id?: number | null
+  sla_tps?: number | null
+  sla_p95_ms?: number | null
+  sla_error_rate?: number | null
+  description?: string
+}
+
+// 更新交易请求：所有字段可选，至少传一项
+export interface TransactionUpdateIn {
+  name?: string
+  txn_code?: string
+  default_script_id?: number | null
+  sla_tps?: number | null
+  sla_p95_ms?: number | null
+  sla_error_rate?: number | null
+  description?: string
+}
+
+// 列表查询参数：name 模糊、txn_code 精确
+export interface TransactionQuery {
+  name?: string
+  txn_code?: string
+  page?: number
+  page_size?: number
+}
+
+// 删除预检结果（当前阶段 scenarios/test_plans 恒为 0）
+export interface TransactionDeletePrecheck {
+  transaction_id: number
+  scenarios: number
+  test_plans: number
+}
+
+// 删除结果
+export interface TransactionDeleteResult {
+  id: number
+  deleted: boolean
+  force: boolean
+  removed_scenarios: number
+  removed_test_plans: number
+}

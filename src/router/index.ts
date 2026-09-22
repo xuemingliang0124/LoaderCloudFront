@@ -91,6 +91,30 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/schedules/ScheduleList.vue'),
         meta: { title: '定时任务', projectScoped: true },
       },
+      // 资产管理（父级，重定向到文档管理）
+      {
+        path: 'projects/:projectId/assets',
+        redirect: (to) => `/projects/${to.params.projectId}/assets/documents`,
+        meta: { title: '资产管理', projectScoped: true },
+      },
+      {
+        path: 'projects/:projectId/assets/documents',
+        name: 'assets-documents',
+        component: () => import('@/views/assets/AssetList.vue'),
+        meta: { title: '文档管理', projectScoped: true },
+      },
+      {
+        path: 'projects/:projectId/assets/transactions',
+        name: 'assets-transactions',
+        component: () => import('@/views/assets/TransactionList.vue'),
+        meta: { title: '交易清单管理', projectScoped: true },
+      },
+      {
+        path: 'projects/:projectId/assets/test-env',
+        name: 'assets-test-env',
+        component: () => import('@/views/assets/TestEnvList.vue'),
+        meta: { title: '测试环境管理', projectScoped: true },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/projects' },

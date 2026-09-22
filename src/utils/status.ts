@@ -125,3 +125,78 @@ export const scenarioTypeTagType = (
       return 'info'
   }
 }
+
+// ---- 资产类型 / 解析状态 ----
+// 后端 AssetType(str, Enum) value 为小写，API 输出按 value 序列化
+export const ASSET_TYPE = {
+  PLAN_DOC: 'plan_doc',
+  ENV_INVENTORY: 'env_inventory',
+  TXN_INVENTORY: 'txn_inventory',
+  SLA_DOC: 'sla_doc',
+  ARCHITECTURE_DOC: 'architecture_doc',
+} as const
+
+export type AssetTypeValue =
+  | typeof ASSET_TYPE.PLAN_DOC
+  | typeof ASSET_TYPE.ENV_INVENTORY
+  | typeof ASSET_TYPE.TXN_INVENTORY
+  | typeof ASSET_TYPE.SLA_DOC
+  | typeof ASSET_TYPE.ARCHITECTURE_DOC
+
+// 资产类型 → 中文标签（与 SRS 一致，供列表/上传/编辑下拉统一使用）
+export const ASSET_TYPE_OPTIONS: { value: AssetTypeValue; label: string }[] = [
+  { value: ASSET_TYPE.PLAN_DOC, label: '测试方案' },
+  { value: ASSET_TYPE.ENV_INVENTORY, label: '环境清单' },
+  { value: ASSET_TYPE.TXN_INVENTORY, label: '交易清单' },
+  { value: ASSET_TYPE.SLA_DOC, label: 'SLA 指标' },
+  { value: ASSET_TYPE.ARCHITECTURE_DOC, label: '架构说明' },
+]
+
+export const assetTypeText = (t: string): string =>
+  ASSET_TYPE_OPTIONS.find((o) => o.value === t)?.label || t || '-'
+
+// 各资产类型允许的扩展名（与后端 _ASSET_TYPE_EXTENSIONS 对齐，用于前端上传前预校验）
+export const ASSET_TYPE_EXTENSIONS: Record<AssetTypeValue, string[]> = {
+  plan_doc: ['.docx', '.doc', '.pdf'],
+  env_inventory: ['.xlsx', '.xls'],
+  txn_inventory: ['.xlsx', '.xls'],
+  sla_doc: ['.docx', '.doc', '.pdf'],
+  architecture_doc: ['.docx', '.doc', '.pdf', '.pptx'],
+}
+
+export const ASSET_STATUS = {
+  PENDING: 'pending',
+  PARSING: 'parsing',
+  READY: 'ready',
+  FAILED: 'failed',
+} as const
+
+export const assetStatusTagType = (
+  status: string,
+): 'success' | 'warning' | 'info' | 'danger' => {
+  switch (status) {
+    case ASSET_STATUS.READY:
+      return 'success'
+    case ASSET_STATUS.PARSING:
+      return 'warning'
+    case ASSET_STATUS.FAILED:
+      return 'danger'
+    case ASSET_STATUS.PENDING:
+    default:
+      return 'info'
+  }
+}
+
+export const assetStatusText = (status: string): string => {
+  const map: Record<string, string> = {
+    pending: '待解析',
+    parsing: '解析中',
+    ready: '已就绪',
+    failed: '解析失败',
+  }
+  return map[status] || status || '-'
+}
+
+// 仅 pending/failed 状态可触发重试解析（与后端 3063 一致）
+export const isAssetRetryable = (status: string): boolean =>
+  status === ASSET_STATUS.PENDING || status === ASSET_STATUS.FAILED

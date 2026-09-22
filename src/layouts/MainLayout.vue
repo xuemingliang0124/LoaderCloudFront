@@ -18,6 +18,7 @@ import {
   DataBoard,
   Box,
   Tools,
+  FolderOpened,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -44,6 +45,16 @@ const projectMenus = [
   { index: 'scenarios', title: '场景', icon: Files, resource: 'scenarios' },
   { index: 'runs', title: '运行记录', icon: VideoPlay, resource: 'runs' },
   { index: 'schedules', title: '定时任务', icon: Timer, resource: 'schedules' },
+  {
+    index: 'assets',
+    title: '资产管理',
+    icon: FolderOpened,
+    children: [
+      { index: 'assets-documents', title: '文档管理', icon: Document, resource: 'assets/documents' },
+      { index: 'assets-transactions', title: '交易清单管理', icon: Files, resource: 'assets/transactions' },
+      { index: 'assets-test-env', title: '测试环境管理', icon: Tools, resource: 'assets/test-env' },
+    ],
+  },
 ]
 
 const visibleGlobalMenus = computed(() =>
@@ -56,8 +67,14 @@ const activeMenu = computed(() => {
   if (name === 'run-detail') return 'runs'
   if (name === 'project-members') return 'members'
   if (route.meta.projectScoped) {
-    const m = route.path.match(/\/projects\/\d+\/([^/]+)/)
-    return m ? m[1] : ''
+    const m = route.path.match(/\/projects\/\d+\/(.+)/)
+    if (!m) return ''
+    const segments = m[1]
+    // 资产管理子菜单：assets/documents -> assets-documents
+    if (segments.startsWith('assets/')) {
+      return 'assets-' + segments.slice('assets/'.length)
+    }
+    return segments.split('/')[0]
   }
   return route.path.replace(/^\//, '')
 })
@@ -69,9 +86,20 @@ const handleMenuSelect = async (index: string) => {
     router.push(gm.path)
     return
   }
-  // 项目作用域菜单：需要当前 projectId，没有则取第一个可见项目
-  const pm = projectMenus.find((m) => m.index === index)
-  if (pm) {
+  // 项目作用域菜单：先查顶层，再查子菜单
+  let pm = projectMenus.find((m) => m.index === index)
+  let resource = pm?.resource
+  if (!pm) {
+    for (const m of projectMenus) {
+      const child = m.children?.find((c) => c.index === index)
+      if (child) {
+        pm = child
+        resource = child.resource
+        break
+      }
+    }
+  }
+  if (pm && resource) {
     let pid = projectStore.currentProjectId
     if (pid === null) {
       pid = await projectStore.selectFirstIfNeeded()
@@ -81,7 +109,7 @@ const handleMenuSelect = async (index: string) => {
       router.push('/projects')
       return
     }
-    router.push(`/projects/${pid}/${pm.resource}`)
+    router.push(`/projects/${pid}/${resource}`)
   }
 }
 
@@ -150,14 +178,26 @@ const handleLogout = async () => {
             <el-icon><Box /></el-icon>
             <span>项目资源</span>
           </template>
-          <el-menu-item
-            v-for="m in projectMenus"
-            :key="m.index"
-            :index="m.index"
-          >
-            <el-icon><component :is="m.icon" /></el-icon>
-            <span>{{ m.title }}</span>
-          </el-menu-item>
+          <template v-for="m in projectMenus" :key="m.index">
+            <el-sub-menu v-if="m.children" :index="m.index">
+              <template #title>
+                <el-icon><component :is="m.icon" /></el-icon>
+                <span>{{ m.title }}</span>
+              </template>
+              <el-menu-item
+                v-for="c in m.children"
+                :key="c.index"
+                :index="c.index"
+              >
+                <el-icon><component :is="c.icon" /></el-icon>
+                <span>{{ c.title }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item v-else :index="m.index">
+              <el-icon><component :is="m.icon" /></el-icon>
+              <span>{{ m.title }}</span>
+            </el-menu-item>
+          </template>
         </el-sub-menu>
       </el-menu>
     </el-aside>
