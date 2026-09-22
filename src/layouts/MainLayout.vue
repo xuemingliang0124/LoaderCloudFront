@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import AIChat from '@/components/AIChat.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
 import {
@@ -245,6 +246,8 @@ const handleLogout = async () => {
         <RouterView />
       </el-main>
     </el-container>
+    <!-- AI 助手：浮动头像 + 右侧聊天面板，所有页面可见 -->
+    <AIChat />
   </el-container>
 </template>
 

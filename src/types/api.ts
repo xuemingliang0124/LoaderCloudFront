@@ -509,3 +509,21 @@ export interface TransactionDeleteResult {
   removed_scenarios: number
   removed_test_plans: number
 }
+
+// ===== LLM 对话（FR-09/FR-10，SRS 6.1，对应后端 chat.py）=====
+// POST /chat 与 /chat/stream 请求体
+export interface ChatRequest {
+  project_id: number
+  message: string
+  use_tools?: boolean
+  top_k?: number
+  run_no?: string
+}
+// FR-09 统一输出（同步接口 data 字段；流式 done 事件携带同样五字段）
+export interface AnswerOut {
+  answer: string
+  citations: string[]
+  used_metrics: string[] | null
+  confidence: number
+  notes: string
+}
