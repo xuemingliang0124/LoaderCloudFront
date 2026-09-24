@@ -114,30 +114,26 @@ const handleMenuSelect = async (index: string) => {
   }
 }
 
-// ===== Header 项目切换器（仅项目作用域页显示）=====
-const projectScoped = computed(() => !!route.meta.projectScoped)
+// ===== Header 项目名称展示（选中项目后所有页面显示）=====
 const currentProject = computed(() => {
   const id = projectStore.currentProjectId
   return projectStore.projects.find((p) => p.id === id) || null
 })
 
-// 进入项目作用域页时自动展开「项目资源」分组（v-if 切换后 default-openeds 不再生效，需手动 open）
+// 选中项目后自动展开「项目资源」分组（v-if 切换后 default-openeds 不再生效，需手动 open）
 watch(
-  projectScoped,
-  async (v) => {
-    if (!v) return
+  () => projectStore.currentProjectId,
+  async (pid) => {
+    if (pid === null) return
     await nextTick()
     menuRef.value?.open('project')
   },
   { immediate: true },
 )
 
-const handleProjectChange = (pid: number) => {
-  projectStore.setCurrent(pid)
-  // 保持当前资源子路径，切换到新项目
-  const m = route.path.match(/\/projects\/\d+\/(.+)/)
-  const sub = m ? m[1] : 'scripts'
-  router.push(`/projects/${pid}/${sub}`)
+// 点击项目名称跳转到项目列表，便于手动切换项目
+const handleSwitchProject = () => {
+  router.push('/projects')
 }
 
 const handleLogout = async () => {
@@ -153,7 +149,7 @@ const handleLogout = async () => {
       <el-menu
         ref="menuRef"
         :default-active="activeMenu"
-        :default-openeds="['global']"
+        :default-openeds="projectStore.currentProjectId !== null ? ['global', 'project'] : ['global']"
         background-color="#001529"
         text-color="#cfd8e6"
         active-text-color="#fff"
@@ -174,7 +170,7 @@ const handleLogout = async () => {
           </el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu v-if="projectScoped" index="project">
+        <el-sub-menu v-if="projectStore.currentProjectId !== null" index="project">
           <template #title>
             <el-icon><Box /></el-icon>
             <span>项目资源</span>
@@ -208,21 +204,16 @@ const handleLogout = async () => {
           <span class="layout__header-title">
             {{ route.meta.title || 'LoaderCloud 压测平台' }}
           </span>
-          <el-select
-            v-if="projectScoped"
-            v-model="projectStore.currentProjectId"
-            class="project-switcher"
-            placeholder="选择项目"
-            @change="handleProjectChange"
+          <span
+            v-if="currentProject"
+            class="layout__project-name"
+            title="点击切换项目"
+            @click="handleSwitchProject"
           >
-            <el-option
-              v-for="p in projectStore.projects"
-              :key="p.id"
-              :label="p.name"
-              :value="p.id"
-            />
-          </el-select>
-          <span v-if="projectScoped && currentProject" class="layout__project-role">
+            <el-icon><FolderOpened /></el-icon>
+            {{ currentProject.name }}
+          </span>
+          <span v-if="currentProject" class="layout__project-role">
             [{{ currentProject.my_role }}]
           </span>
         </div>
@@ -285,6 +276,17 @@ const handleLogout = async () => {
       font-weight: 600;
     }
   }
+  &__project-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--el-color-primary);
+    cursor: pointer;
+    font-size: 14px;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
   &__project-role {
     color: var(--el-text-color-secondary);
     font-size: 12px;
@@ -304,9 +306,6 @@ const handleLogout = async () => {
     background: #f5f7fa;
     padding: 16px;
   }
-}
-.project-switcher {
-  width: 200px;
 }
 :deep(.el-menu) {
   border-right: none;
