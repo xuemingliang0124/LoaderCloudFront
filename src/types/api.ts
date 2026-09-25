@@ -510,6 +510,71 @@ export interface TransactionDeleteResult {
   removed_test_plans: number
 }
 
+// ===== 测试环境管理（项目作用域被测环境资产，对应后端 environments.py）=====
+// 环境承载被测系统的接入信息，后续场景绑定 environment_id 后由编排层在执行期
+// 把 variables 注入 JMX 的 -J 参数；(project_id, env_code) 项目内唯一
+// hosts / db_connections / middleware_info 均为自由 JSON 对象清单，结构后续随资产管道固化
+export interface Environment {
+  id: number
+  project_id: number
+  name: string
+  env_code: string
+  base_url: string
+  hosts: Record<string, unknown>[] | null
+  db_connections: Record<string, unknown>[] | null
+  middleware_info: Record<string, unknown>[] | null
+  variables: Record<string, unknown> | null
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+// 新建环境请求：name/env_code 必填，其余可选
+export interface EnvironmentIn {
+  name: string
+  env_code: string
+  base_url?: string
+  hosts?: Record<string, unknown>[]
+  db_connections?: Record<string, unknown>[]
+  middleware_info?: Record<string, unknown>[]
+  variables?: Record<string, unknown>
+  description?: string
+}
+
+// 更新环境请求：所有字段可选，至少传一项
+export interface EnvironmentUpdateIn {
+  name?: string
+  env_code?: string
+  base_url?: string
+  hosts?: Record<string, unknown>[] | null
+  db_connections?: Record<string, unknown>[] | null
+  middleware_info?: Record<string, unknown>[] | null
+  variables?: Record<string, unknown> | null
+  description?: string
+}
+
+// 列表查询参数：name 模糊、env_code 精确
+export interface EnvironmentQuery {
+  name?: string
+  env_code?: string
+  page?: number
+  page_size?: number
+}
+
+// 删除预检结果：返回引用该环境的场景数
+export interface EnvironmentDeletePrecheck {
+  environment_id: number
+  scenarios: number
+}
+
+// 删除结果
+export interface EnvironmentDeleteResult {
+  id: number
+  deleted: boolean
+  force: boolean
+  removed_scenarios: number
+}
+
 // ===== LLM 对话（FR-09/FR-10，SRS 6.1，对应后端 chat.py）=====
 // POST /chat 与 /chat/stream 请求体
 export interface ChatRequest {
