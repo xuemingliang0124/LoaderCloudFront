@@ -54,7 +54,6 @@ const projectMenus = [
       { index: 'assets-documents', title: '文档管理', icon: Document, resource: 'assets/documents' },
       { index: 'assets-transactions', title: '交易清单管理', icon: Files, resource: 'assets/transactions' },
       { index: 'assets-test-env', title: '测试环境管理', icon: Tools, resource: 'assets/test-env' },
-      { index: 'assets-test-plans', title: '测试方案管理', icon: DataBoard, resource: 'assets/test-plans' },
     ],
   },
 ]
