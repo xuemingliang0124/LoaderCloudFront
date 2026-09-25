@@ -50,11 +50,6 @@ const page = reactive({ page: 1, page_size: 20 })
 
 // 场景下拉（用于挂载场景）
 const scenarios = ref<Scenario[]>([])
-const scenarioNameMap = computed(() => {
-  const m = new Map<number, string>()
-  scenarios.value.forEach((s) => m.set(s.id, s.name))
-  return m
-})
 
 const fetchData = async () => {
   loading.value = true
