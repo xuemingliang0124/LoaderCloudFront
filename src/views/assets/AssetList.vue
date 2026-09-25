@@ -512,10 +512,21 @@ onMounted(fetchData)
   color: var(--el-text-color-secondary);
   line-height: 1.4;
 }
+// 详情对话框：长字符串（SHA256、content_type、文件 Key）允许在任意位置断行，
+// 避免 el-descriptions 表格最小宽度被撑大后溢出对话框
+:deep(.el-descriptions__cell) {
+  overflow-wrap: anywhere;
+}
+// 标签列不换行，避免「文件 Key / 更新时间 / 解析元数据」折成多行
+:deep(.el-descriptions__label) {
+  white-space: nowrap;
+}
 .meta {
   margin: 0;
   max-height: 200px;
-  overflow: auto;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
   font-size: 12px;
   background: var(--el-fill-color-light);
   padding: 8px;

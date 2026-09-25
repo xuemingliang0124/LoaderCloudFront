@@ -115,6 +115,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/assets/TestEnvList.vue'),
         meta: { title: '测试环境管理', projectScoped: true },
       },
+      {
+        path: 'projects/:projectId/assets/test-plans',
+        name: 'assets-test-plans',
+        component: () => import('@/views/assets/TestPlanList.vue'),
+        meta: { title: '测试方案管理', projectScoped: true },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/projects' },

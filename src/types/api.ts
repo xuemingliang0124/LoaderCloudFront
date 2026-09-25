@@ -510,6 +510,93 @@ export interface TransactionDeleteResult {
   removed_test_plans: number
 }
 
+// ===== 测试方案管理（项目作用域场景编排单元，对应后端 test_plans.py）=====
+// 方案挂载场景项：seq 决定批量执行顺序，weight 预留报告聚合语义
+export interface TestPlanScenarioIn {
+  scenario_id: number
+  seq: number
+  weight: number
+}
+
+export interface TestPlanScenario {
+  scenario_id: number
+  scenario_name: string
+  seq: number
+  weight: number
+}
+
+// 方案（TestPlanOut）：pass_criteria 为自由 JSON，由报告/LLM 模块解释
+export interface TestPlan {
+  id: number
+  project_id: number
+  name: string
+  pass_criteria: Record<string, unknown> | null
+  report_template: string
+  description: string
+  created_at: string
+  updated_at: string
+  scenarios: TestPlanScenario[]
+}
+
+// 新建方案请求：项目内 name 唯一；scenarios 创建时一并挂载
+export interface TestPlanIn {
+  name: string
+  pass_criteria?: Record<string, unknown>
+  report_template?: string
+  description?: string
+  scenarios?: TestPlanScenarioIn[]
+}
+
+// 更新方案请求：所有字段可选，至少传一项；scenarios 传则全量替换挂载
+export interface TestPlanUpdateIn {
+  name?: string
+  pass_criteria?: Record<string, unknown>
+  report_template?: string
+  description?: string
+  scenarios?: TestPlanScenarioIn[]
+}
+
+// 列表查询参数：name 模糊
+export interface TestPlanQuery {
+  name?: string
+  page?: number
+  page_size?: number
+}
+
+// 删除预检结果：scenarios 为挂载场景数，references 为外部引用数（当前恒为 0）
+export interface TestPlanDeletePrecheck {
+  plan_id: number
+  scenarios: number
+  references: number
+}
+
+// 删除结果
+export interface TestPlanDeleteResult {
+  id: number
+  deleted: boolean
+  force: boolean
+  removed_plan_scenarios: number
+  removed_references: number
+}
+
+// 一键执行单场景结果
+export interface TestPlanExecuteRun {
+  scenario_id: number
+  scenario_name: string
+  ok: boolean
+  run_no: string | null
+  error: string
+}
+
+// 一键执行结果：逐场景明细，单场景失败不阻断其余场景
+export interface TestPlanExecuteResult {
+  plan_id: number
+  total: number
+  succeeded: number
+  failed: number
+  runs: TestPlanExecuteRun[]
+}
+
 // ===== LLM 对话（FR-09/FR-10，SRS 6.1，对应后端 chat.py）=====
 // POST /chat 与 /chat/stream 请求体
 export interface ChatRequest {
